@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from pigproject.bioenergy_pipeline import (
+    ROLLING_FEATURE_SOURCE_COLUMNS,
     aggregate_by_time,
     create_sequences,
     fit_scalers_per_chamber,
@@ -18,6 +19,7 @@ from pigproject.bioenergy_pipeline import (
     split_by_group_time,
     transform_per_chamber,
 )
+from pigproject.rolling_features import add_rolling_features
 
 
 def normalize_key(value: object) -> str:
@@ -79,6 +81,7 @@ def build_clean_baseline(
     else:
         raw = read_inputs(inputs)
         aggregated = aggregate_by_time(raw)
+    aggregated = add_rolling_features(aggregated, columns=ROLLING_FEATURE_SOURCE_COLUMNS)
     detection_table = pd.read_csv(previous_detection_table)
     excluded_rows = collect_excluded_rows(aggregated, detection_table)
 

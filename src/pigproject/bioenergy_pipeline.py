@@ -10,6 +10,10 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+from pigproject.rolling_features import add_rolling_features
+
+ROLLING_FEATURE_SOURCE_COLUMNS = ["feedstuff_volume_mean", "watersupply_mean"]
+
 
 BASE_FEATURES = [
     "T",
@@ -213,6 +217,7 @@ def build_bioenergy_sequences(
 
     raw = read_inputs(inputs)
     aggregated = aggregate_by_time(raw)
+    aggregated = add_rolling_features(aggregated, columns=ROLLING_FEATURE_SOURCE_COLUMNS)
     aggregated.to_csv(output / "bioenergy_aggregated.csv", index=False)
 
     feature_columns = [
