@@ -20,6 +20,60 @@ def calibrate_threshold(model: keras.Model, X_val: np.ndarray, percentile: float
     return float(np.percentile(errors, percentile))
 
 
+def bootstrap_percentile_ci(
+    errors: np.ndarray,
+    percentile: float,
+    n_bootstrap: int = 2000,
+    ci: float = 0.90,
+    random_state: int = 42,
+) -> dict[str, float]:
+    """Bootstrap confidence interval for an empirical-percentile threshold.
+
+    With only a few dozen validation windows, np.percentile(errors, 99) is
+    close to just reading off the single highest observed error: which
+    windows happen to land in the validation split can swing the threshold a
+    lot, but a bare point estimate hides that. Resampling the validation
+    errors with replacement and recomputing the percentile many times turns
+    that hidden fragility into an explicit interval instead of a single
+    falsely-confident number. Widen the interval (i.e. treat the threshold as
+    unreliable) whenever ci_relative_width is large, and prefer collecting
+    more validation data over trusting a narrow-looking point estimate.
+    """
+    errors = np.asarray(errors, dtype=float)
+    n = len(errors)
+    point = float(np.percentile(errors, percentile))
+    if n < 2:
+        return {
+            "percentile": percentile,
+            "threshold": point,
+            "ci_lower": point,
+            "ci_upper": point,
+            "ci_width": 0.0,
+            "ci_relative_width": 0.0,
+            "n_samples": n,
+            "ci_level": ci,
+        }
+
+    rng = np.random.default_rng(random_state)
+    resampled = rng.choice(errors, size=(n_bootstrap, n), replace=True)
+    boot_thresholds = np.percentile(resampled, percentile, axis=1)
+    alpha = (1 - ci) / 2
+    lower = float(np.quantile(boot_thresholds, alpha))
+    upper = float(np.quantile(boot_thresholds, 1 - alpha))
+    width = upper - lower
+    relative_width = width / point if point else float("inf")
+    return {
+        "percentile": percentile,
+        "threshold": point,
+        "ci_lower": lower,
+        "ci_upper": upper,
+        "ci_width": width,
+        "ci_relative_width": relative_width,
+        "n_samples": n,
+        "ci_level": ci,
+    }
+
+
 def confirm_consecutive(
     raw_flags: np.ndarray,
     consecutive_required: int = 3,
@@ -87,6 +141,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--percentile", type=float, default=99.0)
     parser.add_argument("--consecutive-required", type=int, default=3)
     parser.add_argument("--seq-len", type=int, default=24, help="Used only to look up per-window chamber/pen ids for the default X_val.npy.")
+    parser.add_argument("--n-bootstrap", type=int, default=2000, help="Bootstrap resamples for the threshold confidence interval.")
+    parser.add_argument("--ci-level", type=float, default=0.90, help="Confidence level for the bootstrap threshold interval.")
+    parser.add_argument("--ci-warn-relative-width", type=float, default=0.5, help="Print a warning when (ci_upper - ci_lower) / threshold exceeds this fraction.")
     return parser.parse_args()
 
 
@@ -96,8 +153,17 @@ def main() -> None:
     model = keras.models.load_model(artifacts / args.model_name)
     X_val = np.load(artifacts / "X_val.npy")
 
-    threshold = calibrate_threshold(model, X_val, percentile=args.percentile)
+    val_errors = reconstruction_error(model, X_val)
+    threshold = float(np.percentile(val_errors, args.percentile))
     np.save(artifacts / "threshold.npy", threshold)
+
+    ci = bootstrap_percentile_ci(
+        val_errors,
+        percentile=args.percentile,
+        n_bootstrap=args.n_bootstrap,
+        ci=args.ci_level,
+    )
+    pd.DataFrame([ci]).to_csv(artifacts / "threshold_confidence.csv", index=False)
 
     using_default_val = not args.input
     X_new = np.load(args.input) if args.input else X_val
@@ -115,7 +181,16 @@ def main() -> None:
     np.save(artifacts / "last_errors.npy", errors)
     np.save(artifacts / "last_raw_flags.npy", raw_flags)
     np.save(artifacts / "last_confirmed_flags.npy", confirmed_flags)
-    print(f"threshold: {threshold:.6f}")
+    print(f"threshold: {threshold:.6f}  (n={ci['n_samples']} validation windows)")
+    print(
+        f"{int(args.ci_level * 100)}% bootstrap CI: [{ci['ci_lower']:.6f}, {ci['ci_upper']:.6f}]"
+        f"  (relative width: {ci['ci_relative_width']:.1%})"
+    )
+    if ci["ci_relative_width"] > args.ci_warn_relative_width:
+        print(
+            "WARNING: this threshold is not statistically stable at the current sample size "
+            "-- treat it as provisional and prefer more validation data over trusting the point estimate."
+        )
     print("raw anomaly windows:", int(raw_flags.sum()))
     print("confirmed anomaly windows:", int(confirmed_flags.sum()))
 

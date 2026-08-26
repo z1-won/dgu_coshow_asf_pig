@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from tensorflow import keras
 
-from pigproject.detect import confirm_consecutive, load_group_ids, reconstruction_error
+from pigproject.detect import bootstrap_percentile_ci, confirm_consecutive, load_group_ids, reconstruction_error
 
 
 def compare_thresholds(
@@ -17,6 +17,8 @@ def compare_thresholds(
     percentiles: list[float],
     consecutive_required: int = 3,
     seq_len: int = 24,
+    n_bootstrap: int = 2000,
+    ci_level: float = 0.90,
 ) -> pd.DataFrame:
     artifacts = Path(artifact_dir)
     model = keras.models.load_model(artifacts / "best_model.keras")
@@ -31,6 +33,7 @@ def compare_thresholds(
         threshold = float(np.percentile(errors, percentile))
         raw_flags = errors > threshold
         confirmed_flags = confirm_consecutive(raw_flags, consecutive_required=consecutive_required, group_ids=group_ids)
+        ci = bootstrap_percentile_ci(errors, percentile, n_bootstrap=n_bootstrap, ci=ci_level)
         rows.append(
             {
                 "percentile": percentile,
@@ -41,6 +44,10 @@ def compare_thresholds(
                 "error_median": float(np.median(errors)),
                 "error_mean": float(errors.mean()),
                 "error_max": float(errors.max()),
+                f"ci{int(ci_level * 100)}_lower": ci["ci_lower"],
+                f"ci{int(ci_level * 100)}_upper": ci["ci_upper"],
+                "ci_relative_width": ci["ci_relative_width"],
+                "n_validation_windows": ci["n_samples"],
             }
         )
 
@@ -54,6 +61,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--percentiles", nargs="+", type=float, default=[95.0, 97.0, 99.0])
     parser.add_argument("--consecutive-required", type=int, default=3)
     parser.add_argument("--seq-len", type=int, default=24)
+    parser.add_argument("--n-bootstrap", type=int, default=2000)
+    parser.add_argument("--ci-level", type=float, default=0.90)
     parser.add_argument("--output", default=None)
     return parser.parse_args()
 
@@ -66,6 +75,8 @@ def main() -> None:
         percentiles=args.percentiles,
         consecutive_required=args.consecutive_required,
         seq_len=args.seq_len,
+        n_bootstrap=args.n_bootstrap,
+        ci_level=args.ci_level,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output, index=False)
