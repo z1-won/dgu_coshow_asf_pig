@@ -4,6 +4,14 @@
 
 목표는 ASF 확진이 아니라, 정상 패턴에서 벗어나는 돈방을 조기 선별하는 것입니다. 정상 데이터만으로 모델을 학습하고 재구성 오차 또는 One-Class 점수를 이용해 경보 후보를 찾습니다.
 
+## 빠른 재현 (발표/데모용)
+
+`data/processed/aihub_71408_features.csv`, `aihub_71763_features.csv`가 이미 있다면(아래 "설치" 이후 단계), 아래 한 줄로 최종 모델(`artifacts/bioenergy_clean_baseline`)과 규칙 결합 리포트까지 한 번에 재현됩니다.
+
+```bash
+bash scripts/run_demo_pipeline.sh
+```
+
 ## 포함된 파이프라인
 
 - `pig-preprocess`: AI Hub JSON을 읽어 돈방별 시계열 피처로 변환하고 LSTM 입력 윈도우 생성
