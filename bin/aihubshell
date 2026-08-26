@@ -109,15 +109,18 @@ down_func() {
 	
 	# 상세한 출력을 화면에 표시하면서 다운로드를 진행합니다.
 	http_response=$(curl -L -C - -o "download.tar" -H "apikey:$aihubapikey" -w "\n%{http_code}" "$DOWN_URL?fileSn=$filekeys")
+	# curl 명령의 종료 코드를 즉시 확인합니다 (원래는 아래 echo 이후에 읽어서 항상 0으로
+	# 나오는 버그가 있었습니다 -- 그래서 다운로드가 중간에 끊겨도 "성공"으로 오판하고
+	# 불완전한 download.tar를 그대로 tar -xvf 하다가 "Truncated tar archive" 에러가 났고,
+	# 실패한 download.tar를 무조건 삭제해서 재시도가 매번 처음부터 다시 받아야 했습니다.
+	curl_exit_code=$?
 	http_status=$(echo "$http_response" | tail -n1)
 	http_body=$(echo "$http_response" | sed '$d')
-	
+
 	# HTTP 상태에 따른 처리를 수행합니다.
     if [ "$http_status" -eq 200 ]; then
 	echo "Request successful with HTTP status $http_status."
-	# curl 명령의 종료 코드를 확인합니다.
-	curl_exit_code=$?
-		
+
         if [ $curl_exit_code -eq 0 ]; then
             echo "Download successful."
             # tar 파일을 해제
@@ -153,7 +156,7 @@ down_func() {
                 echo '병합이 완료 되었습니다. '
                 rm download.tar
             else
-	    echo "Download failed with curl exit code $curl_exit_code."
+	    echo "Download failed with curl exit code $curl_exit_code (connection interrupted). download.tar was kept -- rerun the exact same command to resume from where it stopped."
         fi
 
     else
