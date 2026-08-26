@@ -10,6 +10,7 @@ pig-build-bioenergy = pigproject.bioenergy_pipeline:main
 pig-build-clean-baseline = pigproject.bioenergy_baseline:main
 pig-detect = pigproject.detect:main
 pig-explain-bioenergy = pigproject.bioenergy_explain:main
+pig-hotpig-sanity-check = pigproject.hotpig_sanity_check:main
 pig-iforest = pigproject.baseline:main
 pig-make-sample = pigproject.sample_data:main
 pig-normalize = pigproject.normalize:main
