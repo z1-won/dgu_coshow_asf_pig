@@ -12,6 +12,8 @@ Requires-Dist: scikit-learn>=1.2
 Requires-Dist: tensorflow>=2.12
 Provides-Extra: dev
 Requires-Dist: pytest>=7; extra == "dev"
+Provides-Extra: yolo
+Requires-Dist: ultralytics>=8.3; extra == "yolo"
 
 # PigProject
 

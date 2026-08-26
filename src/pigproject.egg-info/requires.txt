@@ -7,3 +7,6 @@ tensorflow>=2.12
 
 [dev]
 pytest>=7
+
+[yolo]
+ultralytics>=8.3

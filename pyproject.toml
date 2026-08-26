@@ -21,6 +21,9 @@ dependencies = [
 dev = [
     "pytest>=7",
 ]
+yolo = [
+    "ultralytics>=8.3",
+]
 
 [project.scripts]
 pig-preprocess = "pigproject.preprocess:main"
@@ -45,6 +48,7 @@ pig-resample-activity = "pigproject.resample_activity:main"
 pig-apply-rules = "pigproject.domain_rules:main"
 pig-hotpig-sanity-check = "pigproject.hotpig_sanity_check:main"
 pig-keypoint-to-yolo = "pigproject.keypoint_to_yolo:main"
+pig-build-yolo-dataset = "pigproject.build_yolo_dataset:main"
 pig-build-activity-model = "pigproject.activity_model_dataset:main"
 
 [tool.setuptools.packages.find]

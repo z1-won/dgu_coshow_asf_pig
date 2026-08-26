@@ -10,6 +10,7 @@ src/pigproject/bioenergy_baseline_overview.py
 src/pigproject/bioenergy_explain.py
 src/pigproject/bioenergy_pipeline.py
 src/pigproject/bioenergy_report.py
+src/pigproject/build_yolo_dataset.py
 src/pigproject/config.py
 src/pigproject/data_io.py
 src/pigproject/detect.py

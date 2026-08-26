@@ -103,7 +103,10 @@ def _yolo_line(class_id: int, xtl: float, ytl: float, xbr: float, ybr: float, wi
 
 def build_dataset(xml_root: str | Path, output_dir: str | Path, classes: list[str] | None = None) -> dict[str, int]:
     xml_root = Path(xml_root)
-    output_root = Path(output_dir) / "labels"
+    # "labels_raw" (not "labels") because build_yolo_dataset.py's train/val split
+    # needs "labels/train" and "labels/val" free for ultralytics' expected
+    # images/<split> <-> labels/<split> sibling convention.
+    output_root = Path(output_dir) / "labels_raw"
     classes = classes or DEFAULT_CLASSES
 
     total = {"images": 0, "boxes": 0, "skipped_unknown_label": 0, "files": 0}

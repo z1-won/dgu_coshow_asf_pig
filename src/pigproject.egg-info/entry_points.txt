@@ -8,6 +8,7 @@ pig-build-activity = pigproject.activity_features:main
 pig-build-activity-model = pigproject.activity_model_dataset:main
 pig-build-bioenergy = pigproject.bioenergy_pipeline:main
 pig-build-clean-baseline = pigproject.bioenergy_baseline:main
+pig-build-yolo-dataset = pigproject.build_yolo_dataset:main
 pig-detect = pigproject.detect:main
 pig-explain-bioenergy = pigproject.bioenergy_explain:main
 pig-hotpig-sanity-check = pigproject.hotpig_sanity_check:main
