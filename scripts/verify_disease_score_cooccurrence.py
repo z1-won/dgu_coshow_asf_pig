@@ -32,7 +32,7 @@ def make_window_row(dataset_key: str, chamber_number: str, **overrides: float) -
         "chamber_number": chamber_number,
         "start_datetime": pd.Timestamp("2026-01-01 00:00:00"),
         "end_datetime": pd.Timestamp("2026-01-01 04:00:00"),
-        "rectal_temperature_mean__wmax": 38.5,
+        "rectal_temperature_mean_corrected__wmax": 38.5,
         "neck_temperature_mean__wmax": 34.0,
         "T_mean__wmax": 27.0,
         "feedstuff_volume_mean_zscore_3d__wmean": 0.0,
@@ -49,12 +49,12 @@ def main() -> None:
     scenarios = {
         "control (정상)": make_window_row("synthetic", "control"),
         "fever_only (고열 단독)": make_window_row(
-            "synthetic", "fever_only", rectal_temperature_mean__wmax=41.0
+            "synthetic", "fever_only", rectal_temperature_mean_corrected__wmax=41.0
         ),
         "combined (고열+섭취급감+음수급증 동시)": make_window_row(
             "synthetic",
             "combined",
-            rectal_temperature_mean__wmax=41.0,
+            rectal_temperature_mean_corrected__wmax=41.0,
             feedstuff_volume_mean_zscore_3d__wmean=-2.0,
             watersupply_mean_zscore_3d__wmean=2.0,
         ),

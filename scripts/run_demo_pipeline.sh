@@ -78,7 +78,12 @@ echo "=== sanity check: pytest ==="
 python -m pytest -q
 
 echo
+echo "=== ASF evidence summary (co-occurrence + real ASF ROC + HotPig) ==="
+python scripts/build_asf_evidence_summary.py
+
+echo
 echo "=== done. key files for the demo ==="
+echo "  $FINAL_DIR/ASF_EVIDENCE_SUMMARY.md              (제일 먼저 볼 문서 -- ASF 근거 전체 요약)"
 echo "  $FINAL_DIR/bioenergy_detection_report.md       (모델 anomaly 결과)"
 echo "  $FINAL_DIR/bioenergy_combined_alert_report.md  (모델+규칙 결합 disease_score 경보)"
 echo "  $FINAL_DIR/bioenergy_pca_cluster_scatter.jpg    (정상 군집 시각화)"
