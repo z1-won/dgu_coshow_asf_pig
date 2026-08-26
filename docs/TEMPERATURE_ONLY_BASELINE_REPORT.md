@@ -4,6 +4,8 @@
 프로젝트 경로: `/Users/bangjiwon/dev/pigproject`  
 참고자료: `/Users/bangjiwon/Downloads/1020210047517.pdf`
 
+> **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: 돈방별 scaler로 다시 실행한 결과 `excluded_rows: 0`(이전 26), `p99 threshold: 2.718018`(이전 `1.766111`)로 바뀌었습니다. raw anomaly 1개, confirmed anomaly 0개는 동일합니다. 또한 `bioenergy_pca_cluster_scatter.jpg`(전체 24피처 기준, train+val 포함)를 다시 보면 `71763/chamber 1`의 `2023-08-09 04:37~14:25` 구간이 train 구간 안에서 3개 연속으로 threshold를 넘는 진짜 confirmed anomaly로 나타납니다 — 이 구간은 `pig-detect`가 기본적으로 validation만 검사하기 때문에 공식 지표(raw=1, confirmed=0)에는 잡히지 않고 있습니다. 아래 절차/수치는 당시 기록으로 남겨둡니다.
+
 ## 1. 목적
 
 이번 작업은 생체 에너지 전체 피처가 아니라 온도 관련 데이터만 사용해서 정상 baseline 모델을 만든 것이다.

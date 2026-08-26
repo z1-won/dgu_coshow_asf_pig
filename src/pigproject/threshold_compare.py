@@ -9,34 +9,28 @@ import numpy as np
 import pandas as pd
 from tensorflow import keras
 
-from pigproject.detect import reconstruction_error
-
-
-def confirm_consecutive(flags: np.ndarray, consecutive_required: int) -> np.ndarray:
-    confirmed = np.zeros_like(flags, dtype=bool)
-    count = 0
-    for idx, flag in enumerate(flags):
-        count = count + 1 if flag else 0
-        if count >= consecutive_required:
-            confirmed[idx - consecutive_required + 1 : idx + 1] = True
-    return confirmed
+from pigproject.detect import confirm_consecutive, load_group_ids, reconstruction_error
 
 
 def compare_thresholds(
     artifact_dir: str | Path,
     percentiles: list[float],
     consecutive_required: int = 3,
+    seq_len: int = 24,
 ) -> pd.DataFrame:
     artifacts = Path(artifact_dir)
     model = keras.models.load_model(artifacts / "best_model.keras")
     X_val = np.load(artifacts / "X_val.npy")
     errors = reconstruction_error(model, X_val)
+    group_ids = load_group_ids(artifacts, seq_len=seq_len)
+    if group_ids is not None and len(group_ids) != len(X_val):
+        group_ids = None
 
     rows = []
     for percentile in percentiles:
         threshold = float(np.percentile(errors, percentile))
         raw_flags = errors > threshold
-        confirmed_flags = confirm_consecutive(raw_flags, consecutive_required=consecutive_required)
+        confirmed_flags = confirm_consecutive(raw_flags, consecutive_required=consecutive_required, group_ids=group_ids)
         rows.append(
             {
                 "percentile": percentile,
@@ -59,6 +53,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--artifact-dir", default="artifacts/bioenergy")
     parser.add_argument("--percentiles", nargs="+", type=float, default=[95.0, 97.0, 99.0])
     parser.add_argument("--consecutive-required", type=int, default=3)
+    parser.add_argument("--seq-len", type=int, default=24)
     parser.add_argument("--output", default=None)
     return parser.parse_args()
 
@@ -70,6 +65,7 @@ def main() -> None:
         artifact_dir=args.artifact_dir,
         percentiles=args.percentiles,
         consecutive_required=args.consecutive_required,
+        seq_len=args.seq_len,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(output, index=False)

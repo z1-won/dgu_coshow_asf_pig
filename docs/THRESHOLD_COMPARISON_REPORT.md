@@ -4,6 +4,18 @@
 프로젝트 경로: `/Users/bangjiwon/dev/pigproject`  
 산출물 경로: `artifacts/bioenergy_split_v2`
 
+> **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: scaler를 전체 통합 1개에서 돈방별로 바꾸고 다시 학습/탐지한 결과, p97 기준 confirmed anomaly가 **3개 → 0개**로 바뀌었습니다.
+>
+> | 기준 | threshold (신규) | raw anomaly | confirmed anomaly |
+> | --- | ---: | ---: | ---: |
+> | p95 | 2.094753 | 4 | 0 |
+> | p97 | 2.104959 | 3 | 0 |
+> | p99 | 2.156519 | 1 | 0 |
+>
+> error summary(신규): min `0.777491`, median `1.383945`, mean `1.363784`, max `2.198874`.
+>
+> 이전 confirmed anomaly 3개는 모두 `71408/chamber 1` 구간이었는데(아래 6절), 돈방별 scaler 적용 후에는 이 구간이 더 이상 이상 후보로 잡히지 않습니다. 아래 절차와 원래 수치는 당시 기록으로 남겨둡니다.
+
 ## 1. 작업 목적
 
 Step 1에서 개선한 validation split을 기준으로 LSTM Autoencoder를 다시 학습하고, anomaly threshold를 p95, p97, p99로 비교했다.

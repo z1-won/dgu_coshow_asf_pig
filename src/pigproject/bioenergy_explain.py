@@ -38,8 +38,9 @@ def build_feature_error_table(
         per_feature_error = np.mean(np.square(X - pred), axis=1)
         total_error = per_feature_error.mean(axis=1)
         raw_flags = total_error > threshold
-        confirmed_flags = confirm_consecutive(raw_flags, consecutive_required=3)
         metadata = load_window_metadata(artifacts / f"bioenergy_{split}_scaled.csv", seq_len=seq_len)
+        group_ids = (metadata["dataset_key"].astype(str) + "_" + metadata["chamber_number"].astype(str)).to_numpy()
+        confirmed_flags = confirm_consecutive(raw_flags, consecutive_required=3, group_ids=group_ids)
         rows = []
         for idx in range(len(X)):
             feature_errors = per_feature_error[idx]

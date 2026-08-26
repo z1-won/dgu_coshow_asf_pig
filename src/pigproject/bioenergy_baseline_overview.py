@@ -29,7 +29,8 @@ def build_split_table(
         metadata = load_window_metadata(artifacts / f"bioenergy_{split}_scaled.csv", seq_len=seq_len)
         errors = reconstruction_error(model, X)
         raw_flags = errors > threshold
-        confirmed_flags = confirm_consecutive(raw_flags, consecutive_required=3)
+        group_ids = (metadata["dataset_key"].astype(str) + "_" + metadata["chamber_number"].astype(str)).to_numpy()
+        confirmed_flags = confirm_consecutive(raw_flags, consecutive_required=3, group_ids=group_ids)
         if len(metadata) != len(errors):
             raise ValueError(f"{split} metadata/errors length mismatch: {len(metadata)} != {len(errors)}")
         metadata = metadata.copy()

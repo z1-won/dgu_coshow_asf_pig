@@ -3,6 +3,12 @@
 작성일: 2026-08-26  
 프로젝트 경로: `/Users/bangjiwon/dev/pigproject`
 
+> **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: 이 문서의 Step 1~5 수치는 전체 데이터를 scaler 1개로 통합 정규화하던 시점의 기록입니다. 이후 돈방(`dataset_key`+`chamber_number`)마다 scaler를 따로 학습하도록 `bioenergy_pipeline.py`/`bioenergy_baseline.py`를 수정했습니다 — 돈방마다 원래 값 수준이 달라서 하나의 scaler를 쓰면 그 수준 차이가 진짜 이상 패턴보다 더 크게 잡혀 PCA 상에서 돈방별로 갈라져 보이는 문제가 있었습니다.
+>
+> 돈방별 scaler로 다시 실행한 뒤 가장 큰 변화는: `bioenergy_split_v2`의 p97 기준 confirmed anomaly가 **3개 → 0개**로 바뀌었고, 그 결과 Step 3(clean baseline)에서 "제외한 26개 row"가 이번 재실행에서는 **0개 제외**로 나왔습니다. 즉 예전에 "이상하게 튀는 구간"으로 보고 정상 기준에서 뺐던 71408/chamber 1 구간이, 실은 돈방 간 scaler 수준 차이 때문에 생긴 착시였을 가능성이 높습니다. Step 4, 5의 threshold도 재계산되어 값이 달라졌습니다 (`bioenergy_clean_baseline_no_nh3` p99 `1.442694` → `2.298732`, `bioenergy_temperature_baseline` p99 `1.766111` → `2.718018`; 둘 다 raw anomaly 1개, confirmed 0개는 동일).
+>
+> 최신 수치는 각 `artifacts/bioenergy_*` 디렉터리의 `bioenergy_detection_report.md`, `bioenergy_threshold_comparison.csv`를 직접 참고하세요. 아래 Step별 서술은 당시 실행 기록으로 남겨둡니다.
+
 ## 1. 우선순위 요약
 
 현재는 AI Hub 라벨 다운로드, 정규화, 생체 에너지 LSTM 입력 생성, Autoencoder 학습/탐지 smoke pipeline까지 완료된 상태다.
