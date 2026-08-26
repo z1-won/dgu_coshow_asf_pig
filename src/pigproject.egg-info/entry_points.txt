@@ -12,6 +12,7 @@ pig-detect = pigproject.detect:main
 pig-explain-bioenergy = pigproject.bioenergy_explain:main
 pig-hotpig-sanity-check = pigproject.hotpig_sanity_check:main
 pig-iforest = pigproject.baseline:main
+pig-keypoint-to-yolo = pigproject.keypoint_to_yolo:main
 pig-make-sample = pigproject.sample_data:main
 pig-normalize = pigproject.normalize:main
 pig-preprocess = pigproject.preprocess:main

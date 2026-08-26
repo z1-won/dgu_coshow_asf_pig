@@ -15,6 +15,7 @@ src/pigproject/data_io.py
 src/pigproject/detect.py
 src/pigproject/domain_rules.py
 src/pigproject/hotpig_sanity_check.py
+src/pigproject/keypoint_to_yolo.py
 src/pigproject/model.py
 src/pigproject/normalize.py
 src/pigproject/preprocess.py
