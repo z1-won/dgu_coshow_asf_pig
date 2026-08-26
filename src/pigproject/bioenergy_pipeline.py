@@ -68,11 +68,33 @@ def aggregate_by_time(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = np.nan
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    grouped = df.groupby(["dataset_key", "chamber_number", "datetime"], dropna=False)
-    mean_df = grouped[BASE_FEATURES].mean().add_suffix("_mean")
-    std_df = grouped[VARIABILITY_FEATURES].std().fillna(0).add_suffix("_std")
-    count_df = grouped.size().to_frame("frame_count")
-    out = pd.concat([mean_df, std_df, count_df], axis=1).reset_index()
+    group_keys = ["dataset_key", "chamber_number", "datetime"]
+
+    if "pig_number" in df.columns:
+        # A chamber+timestamp group pools frames from however many individual pigs
+        # happened to be detected right then, and frame counts per pig differ by
+        # ~100x (one pig can have 10x+ the detections of another in the same
+        # window). Averaging raw frames directly means whichever pig was detected
+        # most dominates the "chamber" reading, which shows up as the mean and std
+        # swinging between timestamps for no real reason. Average within each pig
+        # first, then across pigs, so every individual counts once regardless of
+        # how many frames it contributed.
+        per_pig = (
+            df.groupby(group_keys + ["pig_number"], dropna=False)[BASE_FEATURES].mean().reset_index()
+        )
+        grouped = per_pig.groupby(group_keys, dropna=False)
+        mean_df = grouped[BASE_FEATURES].mean().add_suffix("_mean")
+        std_df = grouped[VARIABILITY_FEATURES].std().fillna(0).add_suffix("_std")
+        pig_count = df.groupby(group_keys, dropna=False)["pig_number"].nunique().rename("pig_count")
+        frame_count = df.groupby(group_keys, dropna=False).size().rename("frame_count")
+        out = pd.concat([mean_df, std_df, pig_count, frame_count], axis=1).reset_index()
+    else:
+        grouped = df.groupby(group_keys, dropna=False)
+        mean_df = grouped[BASE_FEATURES].mean().add_suffix("_mean")
+        std_df = grouped[VARIABILITY_FEATURES].std().fillna(0).add_suffix("_std")
+        count_df = grouped.size().to_frame("frame_count")
+        out = pd.concat([mean_df, std_df, count_df], axis=1).reset_index()
+
     out = out.sort_values(["dataset_key", "chamber_number", "datetime"]).reset_index(drop=True)
     return out
 
