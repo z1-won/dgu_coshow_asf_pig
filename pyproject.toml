@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pigproject"
+version = "0.1.0"
+description = "Pig farm chamber-level anomaly detection with Isolation Forest and LSTM Autoencoder."
+readme = "README.md"
+requires-python = ">=3.9,<3.12"
+dependencies = [
+    "joblib>=1.3",
+    "numpy>=1.23",
+    "pandas>=1.5",
+    "pillow>=10",
+    "scikit-learn>=1.2",
+    "tensorflow>=2.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+]
+
+[project.scripts]
+pig-preprocess = "pigproject.preprocess:main"
+pig-train = "pigproject.train:main"
+pig-detect = "pigproject.detect:main"
+pig-iforest = "pigproject.baseline:main"
+pig-make-sample = "pigproject.sample_data:main"
+pig-analyze-sample = "pigproject.sample_analysis:main"
+pig-aihub = "pigproject.aihub_client:main"
+pig-normalize = "pigproject.normalize:main"
+pig-validate-data = "pigproject.validate_data:main"
+pig-build-bioenergy = "pigproject.bioenergy_pipeline:main"
+pig-bioenergy-report = "pigproject.bioenergy_report:main"
+pig-threshold-compare = "pigproject.threshold_compare:main"
+pig-build-clean-baseline = "pigproject.bioenergy_baseline:main"
+pig-baseline-overview = "pigproject.bioenergy_baseline_overview:main"
+pig-explain-bioenergy = "pigproject.bioenergy_explain:main"
+pig-temperature-timeline = "pigproject.temperature_timeline:main"
+pig-temperature-window-scatter = "pigproject.temperature_window_scatter:main"
+pig-build-activity = "pigproject.activity_features:main"
+pig-resample-activity = "pigproject.resample_activity:main"
+pig-build-activity-model = "pigproject.activity_model_dataset:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

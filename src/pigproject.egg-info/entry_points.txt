@@ -1,0 +1,21 @@
+[console_scripts]
+pig-aihub = pigproject.aihub_client:main
+pig-analyze-sample = pigproject.sample_analysis:main
+pig-baseline-overview = pigproject.bioenergy_baseline_overview:main
+pig-bioenergy-report = pigproject.bioenergy_report:main
+pig-build-activity = pigproject.activity_features:main
+pig-build-activity-model = pigproject.activity_model_dataset:main
+pig-build-bioenergy = pigproject.bioenergy_pipeline:main
+pig-build-clean-baseline = pigproject.bioenergy_baseline:main
+pig-detect = pigproject.detect:main
+pig-explain-bioenergy = pigproject.bioenergy_explain:main
+pig-iforest = pigproject.baseline:main
+pig-make-sample = pigproject.sample_data:main
+pig-normalize = pigproject.normalize:main
+pig-preprocess = pigproject.preprocess:main
+pig-resample-activity = pigproject.resample_activity:main
+pig-temperature-timeline = pigproject.temperature_timeline:main
+pig-temperature-window-scatter = pigproject.temperature_window_scatter:main
+pig-threshold-compare = pigproject.threshold_compare:main
+pig-train = pigproject.train:main
+pig-validate-data = pigproject.validate_data:main

@@ -1,0 +1,95 @@
+{
+  "622": {
+    "name": "지능형 스마트축사 통합 데이터(양돈)",
+    "track": "pig_smart_farm",
+    "priority": "primary",
+    "recommended_first_downloads": [
+      {
+        "split": "Training",
+        "type": "label",
+        "modality": "keypoint",
+        "filename": "TL01.zip",
+        "size": "13 MB",
+        "file_key": "533709",
+        "reason": "활동량 distance/keypoint 기반 핵심 피처 검증"
+      },
+      {
+        "split": "Validation",
+        "type": "label",
+        "modality": "keypoint",
+        "filename": "VL01.zip",
+        "size": "2 MB",
+        "file_key": "533719",
+        "reason": "검증 라벨 구조 확인"
+      },
+      {
+        "split": "Training",
+        "type": "label",
+        "modality": "bbox",
+        "filename": "TL01.zip",
+        "size": "148 MB",
+        "file_key": "533707",
+        "reason": "돈방/개체 bbox 기반 위치 분석"
+      }
+    ]
+  },
+  "71408": {
+    "name": "양돈 생체 에너지 데이터",
+    "track": "pig_bio_energy",
+    "priority": "parallel",
+    "recommended_first_downloads": [
+      {
+        "split": "Training",
+        "type": "label",
+        "modality": "bio_energy",
+        "filename": "TL.zip",
+        "size": "261 MB",
+        "file_key": "509489",
+        "reason": "1차년도 생체 에너지 라벨 스키마 파악"
+      },
+      {
+        "split": "Validation",
+        "type": "label",
+        "modality": "bio_energy",
+        "filename": "VL.zip",
+        "size": "32 MB",
+        "file_key": "509492",
+        "reason": "1차년도 검증 라벨 스키마 파악"
+      }
+    ]
+  },
+  "71763": {
+    "name": "양돈 생체 에너지 데이터 (2023)",
+    "track": "pig_bio_energy",
+    "priority": "parallel",
+    "recommended_first_downloads": [
+      {
+        "split": "Other",
+        "type": "meta",
+        "modality": "other",
+        "filename": "Other.zip",
+        "size": "4 MB",
+        "file_key": "528761",
+        "reason": "2차년도 부가 설명/메타데이터 우선 확인"
+      },
+      {
+        "split": "Training",
+        "type": "label",
+        "modality": "bio_energy",
+        "filename": "TL.zip",
+        "size": "265 MB",
+        "file_key": "528771",
+        "reason": "2차년도 생체 에너지 라벨 스키마 파악"
+      },
+      {
+        "split": "Validation",
+        "type": "label",
+        "modality": "bio_energy",
+        "filename": "VL.zip",
+        "size": "33 MB",
+        "file_key": "528774",
+        "reason": "2차년도 검증 라벨 스키마 파악"
+      }
+    ]
+  }
+}
