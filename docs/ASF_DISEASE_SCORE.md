@@ -40,7 +40,19 @@ disease_score = model_component + rule_score
 
 `bioenergy_clean_baseline` 기준: rule anomaly 19건이 전부 `71408`의 `rectal_temp_high` 단독 발생이라, 동시발생 보너스가 붙을 일이 없어 전부 disease_tier=`medium`(1.18~1.35)에 머문다. `high` tier(1.5 이상)로 올라가려면 규칙 2개 이상이 겹치거나 모델 anomaly와 규칙이 동시에 걸려야 하는데, 지금 AI Hub 데이터에는 그런 복합 사례가 없다.
 
-이건 다음 계획(5순위: 합성 ASF 증상 조합 주입 테스트)에서 "정말 여러 증상이 겹치면 high로 올라가는지" 직접 검증해야 하는 이유이기도 하다.
+이건 다음 계획(5순위: 합성 ASF 증상 조합 주입 테스트)에서 "정말 여러 증상이 겹치면 high로 올라가는지" 직접 검증해야 하는 이유이기도 했다.
+
+### 검증 완료 (`scripts/verify_disease_score_cooccurrence.py`)
+
+실제 `evaluate_rules()`/`disease_tier_for()` 코드 경로에 합성 window 3개를 통과시켜 확인했다. model_component는 세 시나리오 모두 0.45로 고정해서(재구성 오차 영향 배제), 규칙 동시발생 효과만 분리해서 봤다.
+
+| 시나리오 | 걸린 규칙 | rule_severity_sum | co_occurrence_bonus | disease_score | tier |
+| --- | --- | ---: | ---: | ---: | --- |
+| control (정상) | 없음 | 0.00 | 0.00 | 0.45 | normal |
+| fever_only (고열 단독) | rectal_temp_high | 1.00 | 0.00 | 1.45 | medium |
+| combined (고열+섭취급감+음수급증 동시) | rectal_temp_high, feed_drop, water_spike | 1.90 | 0.60 | 2.95 | **high** |
+
+설계대로 단일 증상은 medium, 복합 증상은 high로 확실히 갈린다. `python scripts/verify_disease_score_cooccurrence.py`로 재현 가능.
 
 ## 5. 산출물
 
