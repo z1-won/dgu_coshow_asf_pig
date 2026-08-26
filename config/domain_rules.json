@@ -3,12 +3,12 @@
   "rules": [
     {
       "id": "rectal_temp_high",
-      "feature": "rectal_temperature_mean",
+      "feature": "rectal_temperature_mean_corrected",
       "agg": "max",
       "op": ">=",
       "threshold": 40.5,
       "severity": "high",
-      "note": "직장 체온 급성 고열 기준. ASF 현장 매뉴얼 초기 고열 41~42도를 참고해 보수적으로 40.5도로 설정."
+      "note": "직장 체온 급성 고열 기준. ASF 현장 매뉴얼 초기 고열 41~42도를 참고해 보수적으로 40.5도로 설정. 돈사온도(T_mean) 보정 후 값 사용 -- docs/ASF_TEMPERATURE_CORRECTION.md 참고."
     },
     {
       "id": "neck_temp_high",

@@ -70,7 +70,48 @@ def filter_implausible_values(
     return df, pd.DataFrame(summary_rows)
 
 
-def build_window_raw_table(artifact_dir: str | Path, seq_len: int = 24) -> tuple[pd.DataFrame, pd.DataFrame]:
+REFERENCE_BARN_TEMP = 26.0
+
+
+def fit_barn_temp_correction(
+    df: pd.DataFrame,
+    temp_col: str = "rectal_temperature_mean",
+    barn_col: str = "T_mean",
+    reference_barn_temp: float = REFERENCE_BARN_TEMP,
+) -> dict[str, float]:
+    """Fit rectal_corrected = observed - slope * (barn_temp - reference).
+
+    Same regression as docs/TEMPERATURE_ONLY_BASELINE_REPORT.md's correction
+    work, refit here on whatever data is currently in the artifact dir (that
+    report's numbers predate the per-pig aggregation fix and are marked
+    stale). Ambient barn temperature is a confound for a raw fever threshold
+    -- a hot barn on a hot day can push rectal temperature up without the
+    animal being sick, so the rule should react to the deviation left over
+    after removing that environmental effect, not the raw reading.
+    """
+    pairs = df[[temp_col, barn_col]].dropna()
+    if len(pairs) < 10:
+        return {"slope": 0.0, "intercept": float(pairs[temp_col].mean()) if len(pairs) else 0.0, "reference_barn_temp": reference_barn_temp, "pearson_corr": 0.0, "n_rows": len(pairs)}
+    slope, intercept = np.polyfit(pairs[barn_col], pairs[temp_col], deg=1)
+    corr = float(np.corrcoef(pairs[barn_col], pairs[temp_col])[0, 1]) if pairs[barn_col].std() > 0 else 0.0
+    return {
+        "slope": float(slope),
+        "intercept": float(intercept),
+        "reference_barn_temp": reference_barn_temp,
+        "pearson_corr": corr,
+        "n_rows": len(pairs),
+    }
+
+
+def apply_barn_temp_correction(
+    df: pd.DataFrame, correction: dict[str, float], temp_col: str = "rectal_temperature_mean", barn_col: str = "T_mean"
+) -> pd.Series:
+    return df[temp_col] - correction["slope"] * (df[barn_col] - correction["reference_barn_temp"])
+
+
+def build_window_raw_table(
+    artifact_dir: str | Path, seq_len: int = 24
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, float]]:
     """Per-window mean/max of the *raw* (unscaled) validation features.
 
     Rule thresholds are physical values (e.g. 40.5 degrees C), so they must be
@@ -86,12 +127,20 @@ def build_window_raw_table(artifact_dir: str | Path, seq_len: int = 24) -> tuple
     for df in (val_scaled, aggregated):
         df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
 
+    aggregated_filtered, _ = filter_implausible_values(aggregated)
+    correction = {}
+    if "rectal_temperature_mean" in aggregated_filtered.columns and "T_mean" in aggregated_filtered.columns:
+        correction = fit_barn_temp_correction(aggregated_filtered)
+
     val_raw = val_scaled[["dataset_key", "chamber_number", "datetime"]].merge(
         aggregated,
         on=["dataset_key", "chamber_number", "datetime"],
         how="left",
     )
     val_raw, quality_summary = filter_implausible_values(val_raw)
+
+    if correction:
+        val_raw["rectal_temperature_mean_corrected"] = apply_barn_temp_correction(val_raw, correction)
 
     feature_columns = [
         col
@@ -118,7 +167,7 @@ def build_window_raw_table(artifact_dir: str | Path, seq_len: int = 24) -> tuple
                 row[f"{col}__wmean"] = window[col].mean()
                 row[f"{col}__wmax"] = window[col].max()
             rows.append(row)
-    return pd.DataFrame(rows), quality_summary
+    return pd.DataFrame(rows), quality_summary, correction
 
 
 def evaluate_rules(window_table: pd.DataFrame, rules: list[dict]) -> pd.DataFrame:
@@ -232,7 +281,10 @@ def combine_with_model(rule_table: pd.DataFrame, detection_windows: pd.DataFrame
 
 
 def write_combined_report(
-    combined: pd.DataFrame, output_path: str | Path, quality_summary: pd.DataFrame | None = None
+    combined: pd.DataFrame,
+    output_path: str | Path,
+    quality_summary: pd.DataFrame | None = None,
+    correction: dict[str, float] | None = None,
 ) -> Path:
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -266,6 +318,18 @@ def write_combined_report(
         f"- normal: `{int(tier_counts.get('normal', 0))}`",
         "",
     ]
+    if correction:
+        lines += [
+            "## 돈사온도 보정 적용",
+            "",
+            f"`rectal_corrected = rectal_observed - ({correction['slope']:.6f} * (T_mean - {correction['reference_barn_temp']:.3f}))`",
+            "",
+            f"- 회귀에 쓴 행 수: `{correction['n_rows']}`",
+            f"- Pearson 상관계수: `{correction['pearson_corr']:.4f}`"
+            + (" (거의 0에 가까움 -- 이 데이터에서는 돈사온도와 직장체온의 선형관계가 약해서 보정 효과가 작다)" if abs(correction["pearson_corr"]) < 0.1 else ""),
+            f"- `rectal_temp_high` 규칙은 원본이 아니라 이 보정값(`rectal_temperature_mean_corrected`)에 적용된다.",
+            "",
+        ]
     if len(high_tier):
         lines += [
             "### disease_tier == high 인 window (증상 동시발생 포함)",
@@ -313,7 +377,7 @@ def apply_rules(
     artifacts = Path(artifact_dir)
     config = load_rules(rules_path)
 
-    window_table, quality_summary = build_window_raw_table(artifacts, seq_len=seq_len)
+    window_table, quality_summary, correction = build_window_raw_table(artifacts, seq_len=seq_len)
     rule_table = evaluate_rules(window_table, config["rules"])
 
     detection_windows = pd.read_csv(artifacts / "bioenergy_detection_windows.csv", low_memory=False)
@@ -322,10 +386,16 @@ def apply_rules(
     flags_path = artifacts / "bioenergy_rule_flags.csv"
     report_path = artifacts / "bioenergy_combined_alert_report.md"
     quality_path = artifacts / "bioenergy_sensor_quality_summary.csv"
+    correction_path = artifacts / "bioenergy_temp_correction_formula.csv"
     combined.to_csv(flags_path, index=False)
     quality_summary.to_csv(quality_path, index=False)
-    write_combined_report(combined, report_path, quality_summary)
-    return {"flags": flags_path, "report": report_path, "sensor_quality": quality_path}
+    if correction:
+        pd.DataFrame([correction]).to_csv(correction_path, index=False)
+    write_combined_report(combined, report_path, quality_summary, correction)
+    outputs = {"flags": flags_path, "report": report_path, "sensor_quality": quality_path}
+    if correction:
+        outputs["temp_correction"] = correction_path
+    return outputs
 
 
 def parse_args() -> argparse.Namespace:
