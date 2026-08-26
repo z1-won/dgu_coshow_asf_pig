@@ -6,9 +6,9 @@
       "feature": "rectal_temperature_mean_corrected",
       "agg": "max",
       "op": ">=",
-      "threshold": 40.5,
+      "threshold": 39.5,
       "severity": "high",
-      "note": "직장 체온 급성 고열 기준. ASF 현장 매뉴얼 초기 고열 41~42도를 참고해 보수적으로 40.5도로 설정. 돈사온도(T_mean) 보정 후 값 사용 -- docs/ASF_TEMPERATURE_CORRECTION.md 참고."
+      "note": "직장 체온 급성 고열 기준. 실제 ASF 챌린지 데이터(Dryad 10.5061/dryad.cnp5hqcm5)로 threshold를 스윕해서 39.5도가 재현율(48.7%)과 정밀도(95.0%, FP 1/226) 균형점임을 확인 -- docs/ASF_REAL_CHALLENGE_VALIDATION.md 참고. 돈사온도(T_mean) 보정 후 값 사용 -- docs/ASF_TEMPERATURE_CORRECTION.md 참고."
     },
     {
       "id": "neck_temp_high",

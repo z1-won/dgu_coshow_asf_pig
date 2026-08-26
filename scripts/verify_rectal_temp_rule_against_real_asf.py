@@ -20,12 +20,21 @@ Run: python scripts/verify_rectal_temp_rule_against_real_asf.py
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pandas as pd
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data" / "raw" / "asf_dryad"
-RULE_THRESHOLD = 40.5
+RULES_PATH = Path(__file__).resolve().parent.parent / "config" / "domain_rules.json"
+
+
+def current_rule_threshold() -> float:
+    config = json.loads(RULES_PATH.read_text(encoding="utf-8"))
+    for rule in config["rules"]:
+        if rule["id"] == "rectal_temp_high":
+            return rule["threshold"]
+    raise KeyError("rectal_temp_high rule not found in config/domain_rules.json")
 
 
 def load_long(path: Path, value_name: str) -> pd.DataFrame:
@@ -36,11 +45,12 @@ def load_long(path: Path, value_name: str) -> pd.DataFrame:
 
 
 def main() -> None:
+    threshold = current_rule_threshold()
     temp = load_long(DATA_DIR / "Fig._1F_-_Temperature.csv", "rectal_temp")
     score = load_long(DATA_DIR / "Fig._1F_-_Clinical_scores.csv", "clinical_score")
     day_col = temp.columns[0]
     merged = temp.merge(score, on=[day_col, "pig"])
-    merged["rule_fires"] = merged["rectal_temp"] >= RULE_THRESHOLD
+    merged["rule_fires"] = merged["rectal_temp"] >= threshold
     merged["symptomatic"] = merged["clinical_score"] > 0
 
     tp = int((merged.symptomatic & merged.rule_fires).sum())
@@ -48,6 +58,7 @@ def main() -> None:
     fp = int((~merged.symptomatic & merged.rule_fires).sum())
     tn = int((~merged.symptomatic & ~merged.rule_fires).sum())
 
+    print(f"rectal_temp_high threshold (from config/domain_rules.json): {threshold}")
     print(f"total pig-days: {len(merged)} ({merged.symptomatic.sum()} symptomatic, {(~merged.symptomatic).sum()} asymptomatic)")
     print(f"TP={tp} FN={fn} FP={fp} TN={tn}")
     print(f"sensitivity = {tp / (tp + fn):.3f}")
@@ -59,7 +70,7 @@ def main() -> None:
     for pig, g in merged.groupby("pig"):
         g = g.sort_values(day_col)
         first_symptom = g.loc[g.clinical_score > 0, day_col].min()
-        first_rule = g.loc[g.rectal_temp >= RULE_THRESHOLD, day_col].min()
+        first_rule = g.loc[g.rectal_temp >= threshold, day_col].min()
         max_score = g.clinical_score.max()
         lag = (first_rule - first_symptom) if pd.notna(first_symptom) and pd.notna(first_rule) else None
         print(f"  {pig}: first_symptom_day={first_symptom}, first_rule_fire_day={first_rule}, lag={lag}, max_score={max_score}")
