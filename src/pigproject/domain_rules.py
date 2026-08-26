@@ -22,6 +22,13 @@ def load_rules(path: str | Path) -> dict:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 
+SEVERITY_WEIGHTS: dict[str, float] = {"high": 1.0, "medium": 0.6, "low": 0.3}
+CO_OCCURRENCE_BONUS_PER_EXTRA_RULE = 0.3
+MODEL_COMPONENT_WEIGHT = 0.5
+MODEL_COMPONENT_CAP = 2.0
+DISEASE_TIER_THRESHOLDS: dict[str, float] = {"high": 1.5, "medium": 0.8}
+
+
 PLAUSIBLE_RANGES: dict[str, tuple[float, float]] = {
     "rectal_temperature_mean": (35.0, 42.0),
     "back_temperature_mean": (25.0, 42.0),
@@ -115,11 +122,23 @@ def build_window_raw_table(artifact_dir: str | Path, seq_len: int = 24) -> tuple
 
 
 def evaluate_rules(window_table: pd.DataFrame, rules: list[dict]) -> pd.DataFrame:
+    """Evaluate each rule and fold hits into a co-occurrence-weighted rule_score.
+
+    A plain OR treats "just ran a fever" the same as "fever AND stopped eating
+    AND drank more than usual at the same time" -- but a real ASF read (per the
+    team's symptom research in 베어메모) is that concurrent symptoms are far
+    more disease-specific than any single one. rule_score sums each triggered
+    rule's severity weight, then adds a flat bonus per additional rule beyond
+    the first that fires on the same window, so co-occurring symptoms score
+    disproportionately higher than the same rules firing on separate windows.
+    """
     result = window_table[
         ["dataset_key", "chamber_number", "start_datetime", "end_datetime"]
     ].copy()
     reasons = [[] for _ in range(len(result))]
     triggered_any = np.zeros(len(result), dtype=bool)
+    severity_sum = np.zeros(len(result), dtype=float)
+    triggered_count = np.zeros(len(result), dtype=int)
 
     for rule in rules:
         agg = rule.get("agg", "mean")
@@ -138,14 +157,31 @@ def evaluate_rules(window_table: pd.DataFrame, rules: list[dict]) -> pd.DataFram
         else:
             raise ValueError(f"Unsupported operator '{op}' in rule '{rule['id']}'.")
 
+        weight = SEVERITY_WEIGHTS.get(rule.get("severity", "medium"), SEVERITY_WEIGHTS["medium"])
         result[f"rule_{rule['id']}"] = hit
         triggered_any = triggered_any | hit
+        severity_sum = severity_sum + np.where(hit, weight, 0.0)
+        triggered_count = triggered_count + hit.astype(int)
         for idx in np.flatnonzero(hit):
             reasons[idx].append(rule["id"])
 
+    co_occurrence_bonus = CO_OCCURRENCE_BONUS_PER_EXTRA_RULE * np.maximum(0, triggered_count - 1)
+
     result["rule_anomaly"] = triggered_any
     result["rule_reasons"] = [",".join(r) for r in reasons]
+    result["rule_triggered_count"] = triggered_count
+    result["rule_severity_sum"] = severity_sum
+    result["rule_co_occurrence_bonus"] = co_occurrence_bonus
+    result["rule_score"] = severity_sum + co_occurrence_bonus
     return result
+
+
+def disease_tier_for(score: float) -> str:
+    if score >= DISEASE_TIER_THRESHOLDS["high"]:
+        return "high"
+    if score >= DISEASE_TIER_THRESHOLDS["medium"]:
+        return "medium"
+    return "normal"
 
 
 def combine_with_model(rule_table: pd.DataFrame, detection_windows: pd.DataFrame) -> pd.DataFrame:
@@ -155,13 +191,33 @@ def combine_with_model(rule_table: pd.DataFrame, detection_windows: pd.DataFrame
 
     combined = rule_table.merge(
         detection[
-            ["dataset_key", "chamber_number", "start_datetime", "end_datetime", "reconstruction_error", "raw_anomaly", "confirmed_anomaly"]
+            [
+                "dataset_key",
+                "chamber_number",
+                "start_datetime",
+                "end_datetime",
+                "reconstruction_error",
+                "threshold",
+                "raw_anomaly",
+                "confirmed_anomaly",
+            ]
         ],
         on=["dataset_key", "chamber_number", "start_datetime", "end_datetime"],
         how="left",
     )
     combined["model_anomaly"] = combined["confirmed_anomaly"].fillna(False)
     combined["final_alert"] = combined["model_anomaly"] | combined["rule_anomaly"]
+
+    # Disease score: model_component reflects how far past its own threshold the
+    # reconstruction error sits (capped so one wildly large error can't drown out
+    # everything else); rule_component already carries the co-occurrence bonus
+    # from evaluate_rules(). See docs/ASF_DISEASE_SCORE.md for the rationale and
+    # tier cutoffs.
+    ratio = (combined["reconstruction_error"] / combined["threshold"]).clip(upper=MODEL_COMPONENT_CAP)
+    combined["model_component"] = (MODEL_COMPONENT_WEIGHT * ratio).fillna(0.0)
+    combined["rule_component"] = combined["rule_score"]
+    combined["disease_score"] = combined["model_component"] + combined["rule_component"]
+    combined["disease_tier"] = combined["disease_score"].apply(disease_tier_for)
 
     def primary_reason(row: pd.Series) -> str:
         parts = []
@@ -172,7 +228,7 @@ def combine_with_model(rule_table: pd.DataFrame, detection_windows: pd.DataFrame
         return " + ".join(parts) if parts else ""
 
     combined["primary_reason"] = combined.apply(primary_reason, axis=1)
-    return combined.sort_values(["final_alert", "model_anomaly", "rule_anomaly"], ascending=False).reset_index(drop=True)
+    return combined.sort_values("disease_score", ascending=False).reset_index(drop=True)
 
 
 def write_combined_report(
@@ -189,8 +245,12 @@ def write_combined_report(
         "end_datetime",
         "model_anomaly",
         "rule_anomaly",
+        "disease_score",
+        "disease_tier",
         "primary_reason",
     ]
+    tier_counts = combined["disease_tier"].value_counts()
+    high_tier = combined[combined["disease_tier"] == "high"]
     lines = [
         "# 모델 + 규칙 결합 경보 리포트",
         "",
@@ -199,7 +259,33 @@ def write_combined_report(
         f"- rule anomaly: `{int(combined['rule_anomaly'].sum())}`",
         f"- 최종 경보(model OR rule): `{int(combined['final_alert'].sum())}`",
         "",
+        "## Disease Score 분포",
+        "",
+        f"- high (>= {DISEASE_TIER_THRESHOLDS['high']}): `{int(tier_counts.get('high', 0))}`",
+        f"- medium (>= {DISEASE_TIER_THRESHOLDS['medium']}): `{int(tier_counts.get('medium', 0))}`",
+        f"- normal: `{int(tier_counts.get('normal', 0))}`",
+        "",
     ]
+    if len(high_tier):
+        lines += [
+            "### disease_tier == high 인 window (증상 동시발생 포함)",
+            "",
+            dataframe_to_markdown(
+                high_tier[
+                    [
+                        "dataset_key",
+                        "chamber_number",
+                        "start_datetime",
+                        "end_datetime",
+                        "model_component",
+                        "rule_component",
+                        "disease_score",
+                        "rule_reasons",
+                    ]
+                ]
+            ),
+            "",
+        ]
     if quality_summary is not None and quality_summary["filtered_rows"].sum() > 0:
         filtered = quality_summary[quality_summary["filtered_rows"] > 0]
         lines += [
