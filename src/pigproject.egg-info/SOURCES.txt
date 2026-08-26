@@ -13,10 +13,12 @@ src/pigproject/bioenergy_report.py
 src/pigproject/config.py
 src/pigproject/data_io.py
 src/pigproject/detect.py
+src/pigproject/domain_rules.py
 src/pigproject/model.py
 src/pigproject/normalize.py
 src/pigproject/preprocess.py
 src/pigproject/resample_activity.py
+src/pigproject/rolling_features.py
 src/pigproject/sample_analysis.py
 src/pigproject/sample_data.py
 src/pigproject/temperature_timeline.py

@@ -1,6 +1,7 @@
 [console_scripts]
 pig-aihub = pigproject.aihub_client:main
 pig-analyze-sample = pigproject.sample_analysis:main
+pig-apply-rules = pigproject.domain_rules:main
 pig-baseline-overview = pigproject.bioenergy_baseline_overview:main
 pig-bioenergy-report = pigproject.bioenergy_report:main
 pig-build-activity = pigproject.activity_features:main

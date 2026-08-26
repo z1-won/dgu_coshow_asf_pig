@@ -1,0 +1,50 @@
+{
+  "combine": "OR",
+  "rules": [
+    {
+      "id": "rectal_temp_high",
+      "feature": "rectal_temperature_mean",
+      "agg": "max",
+      "op": ">=",
+      "threshold": 40.5,
+      "severity": "high",
+      "note": "직장 체온 급성 고열 기준. ASF 현장 매뉴얼 초기 고열 41~42도를 참고해 보수적으로 40.5도로 설정."
+    },
+    {
+      "id": "neck_temp_high",
+      "feature": "neck_temperature_mean",
+      "agg": "max",
+      "op": ">=",
+      "threshold": 38.5,
+      "severity": "medium",
+      "note": "목 주변부 체표 온도 상승 후보. 특허 참고 기준(38~40도) 중 하한값."
+    },
+    {
+      "id": "barn_temp_high",
+      "feature": "T_mean",
+      "agg": "max",
+      "op": ">=",
+      "threshold": 40,
+      "severity": "medium",
+      "note": "돈사 환경 고온 위험. 개체 체온과는 별도로 관리 -- 환경 문제와 개체 질병을 구분하기 위해 분리."
+    },
+    {
+      "id": "feed_drop",
+      "feature": "feedstuff_volume_mean_zscore_3d",
+      "agg": "mean",
+      "op": "<=",
+      "threshold": -1.5,
+      "severity": "medium",
+      "note": "최근 3일 자기 평균 대비 사료 섭취 급감. 활동량 감소와 동반되면 질병성 이상 후보 (베어메모 H1-3)."
+    },
+    {
+      "id": "water_spike",
+      "feature": "watersupply_mean_zscore_3d",
+      "agg": "mean",
+      "op": ">=",
+      "threshold": 1.5,
+      "severity": "low",
+      "note": "최근 3일 자기 평균 대비 음수량 급증. 스트레스 상태에서 음수량이 늘어난다는 문헌 인사이트 반영."
+    }
+  ]
+}
