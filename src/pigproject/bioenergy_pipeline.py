@@ -151,6 +151,44 @@ def split_by_group_time(
     )
 
 
+def fit_scalers_per_chamber(
+    train_df: pd.DataFrame, feature_columns: list[str]
+) -> dict[tuple, StandardScaler]:
+    """Fit one StandardScaler per (dataset_key, chamber_number) group.
+
+    Chambers differ in baseline sensor/temperature level (different pig
+    groups, sensor calibration, barn position), so pooling them into one
+    global scaler lets those baseline offsets dominate the model instead of
+    real within-chamber deviations. A per-chamber scaler removes each
+    chamber's own level/scale before the model ever sees the data.
+    """
+    scalers: dict[tuple, StandardScaler] = {}
+    for (dataset_key, chamber_number), group in train_df.groupby(
+        ["dataset_key", "chamber_number"], dropna=False
+    ):
+        scaler = StandardScaler()
+        scaler.fit(group[feature_columns])
+        scalers[(dataset_key, chamber_number)] = scaler
+    return scalers
+
+
+def transform_per_chamber(
+    df: pd.DataFrame, feature_columns: list[str], scalers: dict[tuple, StandardScaler]
+) -> pd.DataFrame:
+    scaled = df.copy()
+    scaled[feature_columns] = scaled[feature_columns].astype(float)
+    for (dataset_key, chamber_number), group in df.groupby(
+        ["dataset_key", "chamber_number"], dropna=False
+    ):
+        key = (dataset_key, chamber_number)
+        if key not in scalers:
+            raise KeyError(
+                f"No scaler fitted for chamber group {key}; it must appear in the training split."
+            )
+        scaled.loc[group.index, feature_columns] = scalers[key].transform(group[feature_columns])
+    return scaled
+
+
 def create_sequences(df: pd.DataFrame, feature_columns: list[str], seq_len: int) -> np.ndarray:
     sequences = []
     for _, group in df.groupby(["dataset_key", "chamber_number"], dropna=False):
@@ -201,14 +239,14 @@ def build_bioenergy_sequences(
     )
     split_summary.to_csv(output / "bioenergy_split_summary.csv", index=False)
 
-    scaler = StandardScaler()
-    scaler.fit(train_df[feature_columns])
-    joblib.dump({"scaler": scaler, "feature_columns": feature_columns}, output / "bioenergy_scaler.joblib")
+    scalers = fit_scalers_per_chamber(train_df, feature_columns)
+    joblib.dump(
+        {"scalers": scalers, "feature_columns": feature_columns, "scaling_mode": "per_chamber"},
+        output / "bioenergy_scaler.joblib",
+    )
 
-    train_scaled = train_df.copy()
-    val_scaled = val_df.copy()
-    train_scaled[feature_columns] = scaler.transform(train_df[feature_columns])
-    val_scaled[feature_columns] = scaler.transform(val_df[feature_columns])
+    train_scaled = transform_per_chamber(train_df, feature_columns, scalers)
+    val_scaled = transform_per_chamber(val_df, feature_columns, scalers)
 
     train_scaled.to_csv(output / "bioenergy_train_scaled.csv", index=False)
     val_scaled.to_csv(output / "bioenergy_val_scaled.csv", index=False)

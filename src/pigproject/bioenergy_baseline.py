@@ -9,13 +9,14 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
 
 from pigproject.bioenergy_pipeline import (
     aggregate_by_time,
     create_sequences,
+    fit_scalers_per_chamber,
     read_inputs,
     split_by_group_time,
+    transform_per_chamber,
 )
 
 
@@ -113,14 +114,14 @@ def build_clean_baseline(
     )
     split_summary.to_csv(output / "bioenergy_split_summary.csv", index=False)
 
-    scaler = StandardScaler()
-    scaler.fit(train_df[feature_columns])
-    joblib.dump({"scaler": scaler, "feature_columns": feature_columns}, output / "bioenergy_scaler.joblib")
+    scalers = fit_scalers_per_chamber(train_df, feature_columns)
+    joblib.dump(
+        {"scalers": scalers, "feature_columns": feature_columns, "scaling_mode": "per_chamber"},
+        output / "bioenergy_scaler.joblib",
+    )
 
-    train_scaled = train_df.copy()
-    val_scaled = val_df.copy()
-    train_scaled[feature_columns] = scaler.transform(train_df[feature_columns])
-    val_scaled[feature_columns] = scaler.transform(val_df[feature_columns])
+    train_scaled = transform_per_chamber(train_df, feature_columns, scalers)
+    val_scaled = transform_per_chamber(val_df, feature_columns, scalers)
 
     train_scaled.to_csv(output / "bioenergy_train_scaled.csv", index=False)
     val_scaled.to_csv(output / "bioenergy_val_scaled.csv", index=False)
