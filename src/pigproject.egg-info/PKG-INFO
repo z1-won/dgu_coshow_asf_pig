@@ -21,6 +21,14 @@ Requires-Dist: ultralytics>=8.3; extra == "yolo"
 
 목표는 ASF 확진이 아니라, 정상 패턴에서 벗어나는 돈방을 조기 선별하는 것입니다. 정상 데이터만으로 모델을 학습하고 재구성 오차 또는 One-Class 점수를 이용해 경보 후보를 찾습니다.
 
+## 빠른 재현 (발표/데모용)
+
+`data/processed/aihub_71408_features.csv`, `aihub_71763_features.csv`가 이미 있다면(아래 "설치" 이후 단계), 아래 한 줄로 최종 모델(`artifacts/bioenergy_clean_baseline`)과 규칙 결합 리포트까지 한 번에 재현됩니다.
+
+```bash
+bash scripts/run_demo_pipeline.sh
+```
+
 ## 포함된 파이프라인
 
 - `pig-preprocess`: AI Hub JSON을 읽어 돈방별 시계열 피처로 변환하고 LSTM 입력 윈도우 생성
@@ -37,6 +45,12 @@ Requires-Dist: ultralytics>=8.3; extra == "yolo"
 - `pig-build-activity`: 키포인트 라벨을 프레임 단위 행동량 feature로 집계
 - `pig-resample-activity`: 프레임 단위 행동량 feature를 5분/10분 단위 시계열로 리샘플링
 - `pig-build-activity-model`: 행동량 시계열을 scaler와 LSTM 입력 배열로 변환
+- `pig-activity-report`: 행동량 트랙의 pig-detect 결과를 돈방별 리포트/CSV로 정리
+- `pig-final-ensemble`: 생체 에너지 트랙과 행동량 트랙의 이상 신호를 하나의 돈방 단위 경보 테이블로 통합
+- `pig-profile-aihub-71471`: 71471 돼지 keypoints 라벨 구조와 행동/발정 라벨 분포 확인
+- `pig-build-aihub-71471-timeseries`: 71471 라벨을 정규화하고 10분 행동 시계열 생성
+- `pig-compare-aihub-71471-622`: 71471과 622 행동량 feature 호환성 비교
+- `pig-aihub-71471-baseline`: 71471 전용 행동 baseline 학습 및 `ESTRUS=Y` 구간 평가
 
 ## 설치
 
@@ -88,10 +102,13 @@ pig-aihub recommended
 pig-aihub download --dataset-key 데이터셋키 --file-key 파일키 --output-dir data/raw/aihub
 ```
 
-양돈 주 데이터셋은 `622`입니다. 병렬 보조 트랙으로 `71408`, `71763` 양돈 생체 에너지 데이터도 함께 관리합니다. 처음에는 수십 GB 원천 이미지보다 작은 라벨 파일부터 받는 것을 권장합니다.
+양돈 주 데이터셋은 `622`입니다. 병렬 보조 트랙으로 `71408`, `71763` 양돈 생체 에너지 데이터도 함께 관리합니다. `71471` 돼지 발정행동 데이터는 행동량 보조 검증 트랙으로만 사용합니다. 처음에는 수십 GB 원천 이미지보다 작은 라벨 파일부터 받는 것을 권장합니다.
 
 - 주 데이터 계획: [docs/AIHUB_API_PLAN.md](docs/AIHUB_API_PLAN.md)
 - 병렬 데이터 트랙: [docs/PARALLEL_DATA_TRACKS.md](docs/PARALLEL_DATA_TRACKS.md)
+- 행동량(622) 트랙 전처리 신뢰성 감사(스케일링/split/결측치): [docs/ACTIVITY_PREPROCESSING_AUDIT.md](docs/ACTIVITY_PREPROCESSING_AUDIT.md)
+- 71471 통합 계획: [docs/AIHUB_71471_INTEGRATION_PLAN.md](docs/AIHUB_71471_INTEGRATION_PLAN.md)
+- 외부 검증 요약: [docs/EXTERNAL_VALIDATION_SUMMARY.md](docs/EXTERNAL_VALIDATION_SUMMARY.md)
 - 데이터셋 매니페스트: [config/aihub_datasets.json](config/aihub_datasets.json)
 
 다운로드 또는 샘플 폴더를 모델용 CSV로 정규화하려면:
@@ -159,6 +176,147 @@ pig-build-activity-model \
   --input data/processed/aihub_622_activity_timeseries_10min.csv \
   --output-dir artifacts/activity_model_10min \
   --seq-len 24
+```
+
+행동량 트랙도 생체 에너지 트랙과 같은 방식으로 학습/탐지/리포트하려면:
+
+```bash
+pig-train --artifact-dir artifacts/activity_model_10min --epochs 50 --batch-size 16
+pig-detect --artifact-dir artifacts/activity_model_10min --percentile 99 --consecutive-required 3
+pig-activity-report --artifact-dir artifacts/activity_model_10min
+```
+
+생체 에너지 트랙(모델+규칙 결합)과 행동량 트랙을 하나의 돈방 단위 경보 테이블로 합치려면:
+
+```bash
+pig-final-ensemble \
+  --bioenergy-dir artifacts/bioenergy_clean_baseline \
+  --activity-dir artifacts/activity_model_10min
+```
+
+두 트랙은 현재 서로 다른 AI Hub 데이터셋(71408/71763 vs 622)이라 같은 물리적 돈방을 공유하지 않습니다. 그래서 지금은 두 트랙의 window를 같은 점수 척도로 표준화해 한 테이블에 모으는 수준까지만 통합되어 있고, `final_score = 0.65 * bioenergy_score + 0.35 * activity_score` 가중 결합은 같은 돈방에서 두 신호가 모두 확보되면 적용하도록 설계만 해 두었습니다. 자세한 내용은 `artifacts/final_chamber_alert_report.md`를 참고하세요.
+
+71471은 622와 행동/위치 feature mapping은 가능하지만, 메인 ensemble에는 넣지 않습니다. 현재 받은 71471 라벨은 `ESTRUS=Y/N`이 channel별로 갈라져 있고, 전용 행동 baseline에서도 발정 validation 구간이 정상보다 강한 이상으로 잡히지 않았습니다. 따라서 71471은 행동 feature 파이프라인의 보조 검증 근거로만 유지합니다.
+
+실제 농장 이벤트 로그 템플릿을 만들고 최종 경보와 시간 겹침을 검증하려면:
+
+```bash
+pig-farm-events
+pig-farm-events \
+  --input data/raw/farm_events/farm_event_log.csv \
+  --alerts-csv data/processed/final_chamber_anomaly_scores.csv
+```
+
+이 명령은 schema 검증, 이벤트/경보 시간 겹침, 사건 시작 전 `24/48/72h` lead-time 평가를 함께 생성합니다. 필수 컬럼과 event_type 정의는 `docs/FARM_EVENT_DATA_SCHEMA.md`에 정리되어 있습니다.
+
+규칙 추가 전/후로 경보 수와 lead-time 지표가 어떻게 바뀌는지 비교하려면:
+
+```bash
+pig-compare-rule-upgrade \
+  --artifact-dir artifacts/bioenergy_clean_baseline \
+  --rules config/domain_rules.json \
+  --events data/raw/farm_events/farm_event_log.csv
+```
+
+비교 결과는 `artifacts/rule_upgrade_compare_report.md`에 생성됩니다.
+
+규칙 검증용 synthetic 이벤트 세트를 만들고 평가하려면:
+
+```bash
+pig-build-synthetic-rule-events
+pig-evaluate-synthetic-rule-events
+```
+
+생성 결과는 `data/raw/farm_events/synthetic_*_events.csv`와 `artifacts/synthetic_rule_evaluation_report.md`에 저장됩니다.
+
+규칙 경보는 `disease`, `management`, `environment` category로 분리되어 있습니다. 자세한 해석은 `docs/RISK_CATEGORY_ALERTS.md`를 참고하세요.
+
+category별 lead-time 성능을 따로 보려면:
+
+```bash
+pig-category-lead-time \
+  --events data/raw/farm_events/synthetic_mixed_events.csv \
+  --alerts-csv data/processed/final_chamber_anomaly_scores.csv
+```
+
+결과는 `artifacts/category_lead_time_report.md`에 생성됩니다.
+
+최종 경보를 현장 대응 queue로 나누려면:
+
+```bash
+pig-action-queues \
+  --alerts-csv data/processed/final_chamber_anomaly_scores.csv \
+  --output-dir artifacts/action_queues \
+  --report artifacts/action_queues/action_queue_report.md
+```
+
+결과는 `disease_queue.csv`, `management_queue.csv`, `environment_queue.csv`, `incident_queue.csv`로 분리됩니다.
+
+incident 확인 결과를 기록할 리뷰 로그 템플릿을 만들려면:
+
+```bash
+pig-build-incident-review-log \
+  --incident-csv artifacts/action_queues/incident_queue.csv \
+  --output-csv data/templates/incident_review_log_template.csv \
+  --summary-output artifacts/incident_review_summary.csv \
+  --report artifacts/incident_review_report.md
+```
+
+리뷰 로그가 채워진 뒤 rule threshold 조정 후보를 보려면:
+
+```bash
+pig-rule-tuning-recommendations \
+  --review-log data/templates/incident_review_log_template.csv \
+  --rules-config config/domain_rules.json \
+  --output-csv artifacts/rule_tuning_recommendations.csv \
+  --report artifacts/rule_tuning_recommendations_report.md
+```
+
+리뷰가 채워진 경우의 흐름을 샘플로 확인하려면:
+
+```bash
+pig-build-sample-review-scenario \
+  --review-template data/templates/incident_review_log_template.csv \
+  --rules-config config/domain_rules.json
+```
+
+결과는 `data/templates/sample_incident_review_log.csv`, `artifacts/sample_incident_review_report.md`, `artifacts/sample_rule_tuning_recommendations_report.md`에 생성됩니다.
+
+rule threshold 후보를 바꾸기 전에 경보 변화량을 실험하려면:
+
+```bash
+pig-rule-threshold-experiment \
+  --artifact-dir artifacts/bioenergy_clean_baseline \
+  --rules config/domain_rules.json
+```
+
+결과는 `artifacts/rule_threshold_experiment_report.md`에 생성됩니다. 현재 후보 실험에서는 disease alert 20개는 유지하면서 environment alert 6개만 줄어드는 조정 후보가 확인됩니다.
+
+사양관리 규칙이 final ensemble까지 연결되는지 별도 synthetic scenario로 확인하려면:
+
+```bash
+pig-build-synthetic-management-scenario
+pig-final-ensemble \
+  --bioenergy-dir artifacts/synthetic_management_scenario \
+  --activity-dir artifacts/activity_model_10min \
+  --output-csv data/processed/synthetic_management_final_chamber_anomaly_scores.csv \
+  --chamber-summary-csv artifacts/synthetic_management_final_chamber_summary.csv \
+  --report artifacts/synthetic_management_final_chamber_alert_report.md
+pig-category-lead-time \
+  --events data/raw/farm_events/synthetic_management_events.csv \
+  --alerts-csv data/processed/synthetic_management_final_chamber_anomaly_scores.csv \
+  --metrics-output artifacts/synthetic_management_category_lead_time_metrics.csv \
+  --events-output artifacts/synthetic_management_category_lead_time_events.csv \
+  --report artifacts/synthetic_management_category_lead_time_report.md
+pig-action-queues \
+  --alerts-csv data/processed/synthetic_management_final_chamber_anomaly_scores.csv \
+  --output-dir artifacts/synthetic_management_action_queues \
+  --report artifacts/synthetic_management_action_queues/action_queue_report.md
+pig-build-incident-review-log \
+  --incident-csv artifacts/synthetic_management_action_queues/incident_queue.csv \
+  --output-csv data/templates/synthetic_management_incident_review_log_template.csv \
+  --summary-output artifacts/synthetic_management_incident_review_summary.csv \
+  --report artifacts/synthetic_management_incident_review_report.md
 ```
 
 처음에는 전체 983GB를 바로 처리하지 말고, 돈방 1~2개와 며칠치 데이터로 `--max-files`를 걸어 파이프라인을 검증하는 흐름을 권장합니다.

@@ -3,7 +3,7 @@
 작성일: 2026-08-26  
 프로젝트 경로: `/Users/bangjiwon/dev/pigproject`
 
-> **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: 이 문서에 기록된 threshold/anomaly 수치는 전체 데이터를 scaler 1개로 통합 정규화하던 시점의 결과입니다. 이후 돈방별로 scaler를 따로 학습하도록 수정해서 수치가 바뀌었습니다. 자세한 변경 내용과 최신 수치는 [docs/NEXT_STEPS.md](NEXT_STEPS.md) 상단 업데이트 노트와 각 `artifacts/bioenergy_*` 디렉터리를 참고하세요.
+> **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: 이 문서에 기록된 threshold/anomaly 수치는 전체 데이터를 scaler 1개로 통합 정규화하던 시점의 결과입니다. 이후 돈방별로 scaler를 따로 학습하도록 수정해서 수치가 바뀌었습니다. 자세한 변경 내용과 최신 수치는 [../00_overview/NEXT_STEPS.md](../00_overview/NEXT_STEPS.md) 상단 업데이트 노트와 각 `artifacts/bioenergy_*` 디렉터리를 참고하세요.
 
 ## 1. 프로젝트 목표
 
@@ -78,7 +78,7 @@ export AIHUB_API_KEY="실제_API_키"
 
 병렬 데이터 트랙 문서:
 
-`/Users/bangjiwon/dev/pigproject/docs/PARALLEL_DATA_TRACKS.md`
+`/Users/bangjiwon/dev/pigproject/../01_data_understanding/PARALLEL_DATA_TRACKS.md`
 
 ## 5. 다운로드 완료 데이터
 

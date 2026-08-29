@@ -28,11 +28,16 @@ import joblib
 import numpy as np
 import pandas as pd
 
+from pigproject.activity_model_dataset import dataframe_to_markdown
 from pigproject.bioenergy_pipeline import create_sequences, fit_scalers_per_chamber, transform_per_chamber
 
 COUNT_COLUMNS = ["unknown", "standing", "seating", "lying", "eating", "drinking", "cuddling", "curious"]
 FLAG_COLUMNS = ["idle", "drink", "eat", "mate"]
 RESAMPLE_FREQ = "10min"
+
+
+def feature_columns() -> list[str]:
+    return [f"{col}_frac" for col in COUNT_COLUMNS] + FLAG_COLUMNS + ["feed"]
 
 
 def load_pig_series(path: Path) -> pd.DataFrame:
@@ -79,6 +84,86 @@ def resample_pig_series(df: pd.DataFrame, freq: str = RESAMPLE_FREQ) -> pd.DataF
     return pd.concat(parts, ignore_index=True)
 
 
+def build_sequence_metadata(df: pd.DataFrame, seq_len: int) -> pd.DataFrame:
+    rows = []
+    for (dataset_key, chamber_number), group in df.groupby(["dataset_key", "chamber_number"], dropna=False):
+        group = group.sort_values("datetime").reset_index(drop=True)
+        for start in range(len(group) - seq_len + 1):
+            end = start + seq_len - 1
+            rows.append(
+                {
+                    "dataset_key": dataset_key,
+                    "pig_id": chamber_number,
+                    "condition": group.loc[end, "conditions"],
+                    "start_datetime": group.loc[start, "datetime"],
+                    "end_datetime": group.loc[end, "datetime"],
+                    "window_start_index": start,
+                    "window_end_index": end,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def summarize_feature_shift(resampled: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    rows = []
+    for feature in columns:
+        tn = resampled.loc[resampled["conditions"] == "TN", feature]
+        hs = resampled.loc[resampled["conditions"] == "HS", feature]
+        rows.append(
+            {
+                "feature": feature,
+                "tn_mean": float(tn.mean()),
+                "hs_mean": float(hs.mean()),
+                "hs_minus_tn": float(hs.mean() - tn.mean()),
+                "relative_change": float((hs.mean() - tn.mean()) / tn.mean()) if tn.mean() else np.nan,
+            }
+        )
+    return pd.DataFrame(rows).sort_values("hs_minus_tn", key=lambda s: s.abs(), ascending=False)
+
+
+def write_dataset_report(
+    output: Path,
+    raw: pd.DataFrame,
+    resampled: pd.DataFrame,
+    split_summary: pd.DataFrame,
+    arrays: dict[str, np.ndarray],
+    columns: list[str],
+) -> Path:
+    condition_counts = resampled.groupby("conditions").size().to_frame("rows_10min")
+    feature_shift = summarize_feature_shift(resampled, columns)
+    feature_shift.to_csv(output / "hotpig_feature_shift_summary.csv", index=False)
+    report = output / "hotpig_dataset_report.md"
+    lines = [
+        "# HOTPIG 데이터셋 전처리 보고서",
+        "",
+        f"- source rows: `{len(raw)}`",
+        f"- resampled 10min rows: `{len(resampled)}`",
+        f"- pigs: `{raw['pig_id'].nunique()}`",
+        f"- feature 수: `{len(columns)}`",
+        f"- X_train shape: `{tuple(arrays['X_train'].shape)}`",
+        f"- X_val shape: `{tuple(arrays['X_val'].shape)}`",
+        f"- X_test_hs shape: `{tuple(arrays['X_test_hs'].shape)}`",
+        "",
+        "## Feature",
+        "",
+        ", ".join(f"`{col}`" for col in columns),
+        "",
+        "## 조건별 10분 row 수",
+        "",
+        dataframe_to_markdown(condition_counts),
+        "",
+        "## TN train/val split",
+        "",
+        dataframe_to_markdown(split_summary),
+        "",
+        "## TN 대비 HS 평균 변화 상위 feature",
+        "",
+        dataframe_to_markdown(feature_shift.head(12)),
+    ]
+    report.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return report
+
+
 def build_sanity_dataset(
     input_dir: str | Path,
     output_dir: str | Path,
@@ -92,7 +177,7 @@ def build_sanity_dataset(
     resampled = resample_pig_series(raw)
     resampled.to_csv(output / "hotpig_resampled.csv", index=False)
 
-    feature_columns = [f"{col}_frac" for col in COUNT_COLUMNS] + FLAG_COLUMNS + ["feed"]
+    columns = feature_columns()
 
     resampled = resampled.rename(columns={"pig_id": "chamber_number"})
     resampled["dataset_key"] = "hotpig"
@@ -118,25 +203,34 @@ def build_sanity_dataset(
     val_df = pd.concat(val_parts, ignore_index=True)
     pd.DataFrame(split_rows).to_csv(output / "hotpig_split_summary.csv", index=False)
 
-    scalers = fit_scalers_per_chamber(train_df, feature_columns)
-    train_scaled = transform_per_chamber(train_df, feature_columns, scalers)
-    val_scaled = transform_per_chamber(val_df, feature_columns, scalers)
-    hs_scaled = transform_per_chamber(hs, feature_columns, scalers)
+    scalers = fit_scalers_per_chamber(train_df, columns)
+    train_scaled = transform_per_chamber(train_df, columns, scalers)
+    val_scaled = transform_per_chamber(val_df, columns, scalers)
+    hs_scaled = transform_per_chamber(hs, columns, scalers)
 
-    X_train = create_sequences(train_scaled, feature_columns, seq_len=seq_len)
-    X_val = create_sequences(val_scaled, feature_columns, seq_len=seq_len)
-    X_hs = create_sequences(hs_scaled, feature_columns, seq_len=seq_len)
+    train_scaled.to_csv(output / "hotpig_train_scaled.csv", index=False)
+    val_scaled.to_csv(output / "hotpig_val_scaled.csv", index=False)
+    hs_scaled.to_csv(output / "hotpig_hs_scaled.csv", index=False)
+
+    X_train = create_sequences(train_scaled, columns, seq_len=seq_len)
+    X_val = create_sequences(val_scaled, columns, seq_len=seq_len)
+    X_hs = create_sequences(hs_scaled, columns, seq_len=seq_len)
 
     np.save(output / "X_train.npy", X_train)
     np.save(output / "X_val.npy", X_val)
     np.save(output / "X_test_hs.npy", X_hs)
-    pd.Series(feature_columns, name="feature").to_csv(output / "hotpig_feature_columns.csv", index=False)
+    build_sequence_metadata(train_scaled, seq_len).to_csv(output / "hotpig_train_sequence_metadata.csv", index=False)
+    build_sequence_metadata(val_scaled, seq_len).to_csv(output / "hotpig_val_sequence_metadata.csv", index=False)
+    build_sequence_metadata(hs_scaled, seq_len).to_csv(output / "hotpig_hs_sequence_metadata.csv", index=False)
+    pd.Series(columns, name="feature").to_csv(output / "hotpig_feature_columns.csv", index=False)
     joblib.dump(
-        {"scalers": scalers, "feature_columns": feature_columns, "scaling_mode": "per_pig"},
+        {"scalers": scalers, "feature_columns": columns, "scaling_mode": "per_pig"},
         output / "hotpig_scaler.joblib",
     )
 
-    return {"X_train": X_train, "X_val": X_val, "X_test_hs": X_hs}
+    arrays = {"X_train": X_train, "X_val": X_val, "X_test_hs": X_hs}
+    write_dataset_report(output, raw, resampled, pd.DataFrame(split_rows), arrays, columns)
+    return arrays
 
 
 def parse_args() -> argparse.Namespace:

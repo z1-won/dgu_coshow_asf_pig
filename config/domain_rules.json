@@ -8,6 +8,7 @@
       "op": ">=",
       "threshold": 39.5,
       "severity": "high",
+      "category": "disease",
       "note": "직장 체온 급성 고열 기준. 실제 ASF 챌린지 데이터(Dryad 10.5061/dryad.cnp5hqcm5)로 threshold를 스윕해서 39.5도가 재현율(48.7%)과 정밀도(95.0%, FP 1/226) 균형점임을 확인 -- docs/ASF_REAL_CHALLENGE_VALIDATION.md 참고. 돈사온도(T_mean) 보정 후 값 사용 -- docs/ASF_TEMPERATURE_CORRECTION.md 참고."
     },
     {
@@ -17,6 +18,7 @@
       "op": ">=",
       "threshold": 38.5,
       "severity": "medium",
+      "category": "disease",
       "note": "목 주변부 체표 온도 상승 후보. 특허 참고 기준(38~40도) 중 하한값."
     },
     {
@@ -26,6 +28,7 @@
       "op": ">=",
       "threshold": 40,
       "severity": "medium",
+      "category": "environment",
       "note": "돈사 환경 고온 위험. 개체 체온과는 별도로 관리 -- 환경 문제와 개체 질병을 구분하기 위해 분리."
     },
     {
@@ -35,6 +38,7 @@
       "op": "<=",
       "threshold": -1.5,
       "severity": "medium",
+      "category": "management",
       "note": "최근 3일 자기 평균 대비 사료 섭취 급감. 활동량 감소와 동반되면 질병성 이상 후보 (베어메모 H1-3)."
     },
     {
@@ -44,7 +48,88 @@
       "op": ">=",
       "threshold": 1.5,
       "severity": "low",
+      "category": "management",
       "note": "최근 3일 자기 평균 대비 음수량 급증. 스트레스 상태에서 음수량이 늘어난다는 문헌 인사이트 반영."
+    },
+    {
+      "id": "water_drop",
+      "feature": "watersupply_mean_zscore_3d",
+      "agg": "mean",
+      "op": "<=",
+      "threshold": -1.5,
+      "severity": "medium",
+      "category": "management",
+      "note": "최근 3일 자기 평균 대비 급수량 급감. 질병, 급수 설비 이상, 관리 이벤트가 모두 원인이 될 수 있어 disease score에는 넣되 원인 해석은 보수적으로 한다."
+    },
+    {
+      "id": "ventilation_low",
+      "feature": "ventilation_rate_mean",
+      "agg": "mean",
+      "op": "<=",
+      "threshold": 1.5,
+      "severity": "low",
+      "category": "environment",
+      "note": "환기량 저하 후보. 단독으로는 질병 신호가 아니라 환경/설비 확인 신호에 가깝다."
+    },
+    {
+      "id": "co2_high",
+      "feature": "CO2_mean",
+      "agg": "max",
+      "op": ">=",
+      "threshold": 1000,
+      "severity": "low",
+      "category": "environment",
+      "note": "CO2 고농도 후보. 질병보다 돈사 환경/환기 상태 확인용 보조 규칙."
+    },
+    {
+      "id": "nh3_high",
+      "feature": "NH3_mean",
+      "agg": "max",
+      "op": ">=",
+      "threshold": 10,
+      "severity": "low",
+      "category": "environment",
+      "note": "NH3 고농도 후보. 현재 데이터 분포의 상위권만 걸리도록 보수적으로 둔 환경 보조 규칙."
+    },
+    {
+      "id": "ventilation_low_with_co2_high",
+      "severity": "medium",
+      "category": "environment",
+      "all_of": [
+        {
+          "feature": "ventilation_rate_mean",
+          "agg": "mean",
+          "op": "<=",
+          "threshold": 1.5
+        },
+        {
+          "feature": "CO2_mean",
+          "agg": "max",
+          "op": ">=",
+          "threshold": 950
+        }
+      ],
+      "note": "환기량이 낮고 CO2가 동시에 높은 조합. 단독 CO2보다 environment_failure 설명력이 높은 복합 규칙."
+    },
+    {
+      "id": "ventilation_low_with_nh3_high",
+      "severity": "medium",
+      "category": "environment",
+      "all_of": [
+        {
+          "feature": "ventilation_rate_mean",
+          "agg": "mean",
+          "op": "<=",
+          "threshold": 1.5
+        },
+        {
+          "feature": "NH3_mean",
+          "agg": "max",
+          "op": ">=",
+          "threshold": 9.5
+        }
+      ],
+      "note": "환기량이 낮고 NH3가 동시에 높은 조합. 환경/설비성 이상을 우선 의심하는 복합 규칙."
     }
   ]
 }

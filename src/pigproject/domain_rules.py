@@ -27,6 +27,8 @@ CO_OCCURRENCE_BONUS_PER_EXTRA_RULE = 0.3
 MODEL_COMPONENT_WEIGHT = 0.5
 MODEL_COMPONENT_CAP = 2.0
 DISEASE_TIER_THRESHOLDS: dict[str, float] = {"high": 1.5, "medium": 0.8}
+RISK_CATEGORY_THRESHOLDS: dict[str, float] = {"disease": 0.8, "management": 0.6, "environment": 0.8}
+RISK_CATEGORIES = ("disease", "management", "environment")
 
 
 PLAUSIBLE_RANGES: dict[str, tuple[float, float]] = {
@@ -185,11 +187,14 @@ def evaluate_rules(window_table: pd.DataFrame, rules: list[dict]) -> pd.DataFram
         ["dataset_key", "chamber_number", "start_datetime", "end_datetime"]
     ].copy()
     reasons = [[] for _ in range(len(result))]
+    reasons_by_category = {category: [[] for _ in range(len(result))] for category in RISK_CATEGORIES}
     triggered_any = np.zeros(len(result), dtype=bool)
     severity_sum = np.zeros(len(result), dtype=float)
     triggered_count = np.zeros(len(result), dtype=int)
+    category_scores = {category: np.zeros(len(result), dtype=float) for category in RISK_CATEGORIES}
+    category_counts = {category: np.zeros(len(result), dtype=int) for category in RISK_CATEGORIES}
 
-    for rule in rules:
+    def evaluate_single_condition(rule: dict) -> np.ndarray:
         agg = rule.get("agg", "mean")
         column = f"{rule['feature']}__w{agg}"
         if column not in window_table.columns:
@@ -205,23 +210,45 @@ def evaluate_rules(window_table: pd.DataFrame, rules: list[dict]) -> pd.DataFram
             hit = (values <= rule["threshold"]).to_numpy()
         else:
             raise ValueError(f"Unsupported operator '{op}' in rule '{rule['id']}'.")
+        return hit
+
+    for rule in rules:
+        if "all_of" in rule:
+            condition_hits = [evaluate_single_condition({**condition, "id": rule["id"]}) for condition in rule["all_of"]]
+            hit = np.logical_and.reduce(condition_hits)
+        else:
+            hit = evaluate_single_condition(rule)
 
         weight = SEVERITY_WEIGHTS.get(rule.get("severity", "medium"), SEVERITY_WEIGHTS["medium"])
+        category = rule.get("category", "disease")
+        if category not in category_scores:
+            category = "disease"
         result[f"rule_{rule['id']}"] = hit
         triggered_any = triggered_any | hit
         severity_sum = severity_sum + np.where(hit, weight, 0.0)
         triggered_count = triggered_count + hit.astype(int)
+        category_scores[category] = category_scores[category] + np.where(hit, weight, 0.0)
+        category_counts[category] = category_counts[category] + hit.astype(int)
         for idx in np.flatnonzero(hit):
             reasons[idx].append(rule["id"])
+            reasons_by_category[category][idx].append(rule["id"])
 
     co_occurrence_bonus = CO_OCCURRENCE_BONUS_PER_EXTRA_RULE * np.maximum(0, triggered_count - 1)
 
-    result["rule_anomaly"] = triggered_any
     result["rule_reasons"] = [",".join(r) for r in reasons]
     result["rule_triggered_count"] = triggered_count
     result["rule_severity_sum"] = severity_sum
     result["rule_co_occurrence_bonus"] = co_occurrence_bonus
     result["rule_score"] = severity_sum + co_occurrence_bonus
+    for category in RISK_CATEGORIES:
+        category_bonus = CO_OCCURRENCE_BONUS_PER_EXTRA_RULE * np.maximum(0, category_counts[category] - 1)
+        result[f"{category}_rule_score"] = category_scores[category] + category_bonus
+        result[f"{category}_rule_reasons"] = [",".join(r) for r in reasons_by_category[category]]
+        result[f"{category}_rule_anomaly"] = result[f"{category}_rule_score"] >= RISK_CATEGORY_THRESHOLDS[category]
+    result["rule_observation"] = triggered_any
+    result["rule_anomaly"] = (
+        result["disease_rule_anomaly"] | result["management_rule_anomaly"] | result["environment_rule_anomaly"]
+    )
     return result
 
 
@@ -264,16 +291,38 @@ def combine_with_model(rule_table: pd.DataFrame, detection_windows: pd.DataFrame
     # tier cutoffs.
     ratio = (combined["reconstruction_error"] / combined["threshold"]).clip(upper=MODEL_COMPONENT_CAP)
     combined["model_component"] = (MODEL_COMPONENT_WEIGHT * ratio).fillna(0.0)
-    combined["rule_component"] = combined["rule_score"]
+    combined["rule_component"] = combined["disease_rule_score"]
     combined["disease_score"] = combined["model_component"] + combined["rule_component"]
     combined["disease_tier"] = combined["disease_score"].apply(disease_tier_for)
+    combined["management_score"] = combined["management_rule_score"]
+    combined["environment_score"] = combined["environment_rule_score"]
+    combined["management_alert"] = combined["management_rule_anomaly"]
+    combined["environment_alert"] = combined["environment_rule_anomaly"]
+    combined["disease_alert"] = combined["model_anomaly"] | combined["disease_rule_anomaly"]
+
+    def alert_category(row: pd.Series) -> str:
+        categories = []
+        if row["disease_alert"]:
+            categories.append("disease")
+        if row["management_alert"]:
+            categories.append("management")
+        if row["environment_alert"]:
+            categories.append("environment")
+        return ",".join(categories)
+
+    combined["alert_category"] = combined.apply(alert_category, axis=1)
 
     def primary_reason(row: pd.Series) -> str:
         parts = []
         if row["model_anomaly"]:
             parts.append("model reconstruction error threshold 초과")
         if row["rule_anomaly"]:
-            parts.append(f"rule: {row['rule_reasons']}")
+            category_reasons = []
+            for category in RISK_CATEGORIES:
+                value = row.get(f"{category}_rule_reasons", "")
+                if value:
+                    category_reasons.append(f"{category}: {value}")
+            parts.append("rule: " + " | ".join(category_reasons))
         return " + ".join(parts) if parts else ""
 
     combined["primary_reason"] = combined.apply(primary_reason, axis=1)
@@ -297,7 +346,10 @@ def write_combined_report(
         "end_datetime",
         "model_anomaly",
         "rule_anomaly",
+        "alert_category",
         "disease_score",
+        "management_score",
+        "environment_score",
         "disease_tier",
         "primary_reason",
     ]
@@ -309,6 +361,9 @@ def write_combined_report(
         f"- 전체 검증 window: `{len(combined)}`",
         f"- model anomaly (confirmed): `{int(combined['model_anomaly'].sum())}`",
         f"- rule anomaly: `{int(combined['rule_anomaly'].sum())}`",
+        f"- disease alert: `{int(combined['disease_alert'].sum())}`",
+        f"- management alert: `{int(combined['management_alert'].sum())}`",
+        f"- environment alert: `{int(combined['environment_alert'].sum())}`",
         f"- 최종 경보(model OR rule): `{int(combined['final_alert'].sum())}`",
         "",
         "## Disease Score 분포",
@@ -316,6 +371,34 @@ def write_combined_report(
         f"- high (>= {DISEASE_TIER_THRESHOLDS['high']}): `{int(tier_counts.get('high', 0))}`",
         f"- medium (>= {DISEASE_TIER_THRESHOLDS['medium']}): `{int(tier_counts.get('medium', 0))}`",
         f"- normal: `{int(tier_counts.get('normal', 0))}`",
+        "",
+    ]
+    category_summary = pd.DataFrame(
+        [
+            {
+                "category": "disease",
+                "alerts": int(combined["disease_alert"].sum()),
+                "mean_score": combined["disease_score"].mean(),
+                "max_score": combined["disease_score"].max(),
+            },
+            {
+                "category": "management",
+                "alerts": int(combined["management_alert"].sum()),
+                "mean_score": combined["management_score"].mean(),
+                "max_score": combined["management_score"].max(),
+            },
+            {
+                "category": "environment",
+                "alerts": int(combined["environment_alert"].sum()),
+                "mean_score": combined["environment_score"].mean(),
+                "max_score": combined["environment_score"].max(),
+            },
+        ]
+    )
+    lines += [
+        "## Risk Category별 요약",
+        "",
+        dataframe_to_markdown(category_summary),
         "",
     ]
     if correction:

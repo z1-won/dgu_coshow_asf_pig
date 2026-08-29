@@ -91,5 +91,40 @@
         "reason": "2차년도 검증 라벨 스키마 파악"
       }
     ]
+  },
+  "71471": {
+    "name": "소(한우, 젖소) 및 돼지 발정행동 데이터",
+    "track": "pig_behavior_auxiliary",
+    "priority": "candidate_external",
+    "note": "발정행동 데이터이므로 ASF 직접 검증 데이터가 아니다. 다만 돼지 행동 변화, 활동량, 자세/탐지 라벨 구조가 있으면 622 행동량 트랙 보강 후보로 검토한다.",
+    "recommended_first_downloads": [
+      {
+        "split": "Other",
+        "type": "meta",
+        "modality": "metadata",
+        "filename": "01.메타데이터.zip",
+        "size": "311 B",
+        "file_key": "511265",
+        "reason": "축종, 행동 라벨, 촬영/센서 단위, 시간축 존재 여부를 먼저 확인"
+      },
+      {
+        "split": "Training",
+        "type": "label",
+        "modality": "pig_behavior_label",
+        "filename": "TL_3.돼지_01.이미지_002.keypoints.zip",
+        "size": "28 MB",
+        "file_key": "511411",
+        "reason": "이미지/영상 원천보다 작은 라벨을 먼저 받아 622 행동량 feature와 호환되는지 확인"
+      },
+      {
+        "split": "Validation",
+        "type": "label",
+        "modality": "pig_behavior_label",
+        "filename": "VL_3.돼지_01.이미지_002.keypoints.zip",
+        "size": "4 MB",
+        "file_key": "511459",
+        "reason": "training 라벨과 같은 스키마인지 확인하고 검증 split 후보로 사용"
+      }
+    ]
   }
 }

@@ -18,6 +18,15 @@
 
 두 이진값의 confusion matrix를 계산했다.
 
+추가 종합 분석 모듈도 만들었다: `src/pigproject/asf_dryad_analysis.py`, CLI `pig-asf-dryad-analysis`.
+이 모듈은 `Fig. 1F`의 실제 challenge 온도/임상점수에 `Fig. 1H` 혈중 viral load, `Sup. Fig. 3` leukocyte를 병합해 다음 산출물을 만든다.
+
+- `artifacts/asf_dryad_validation/asf_dryad_validation_report.md`
+- `artifacts/asf_dryad_validation/asf_challenge_daily_long.csv`
+- `artifacts/asf_dryad_validation/asf_rectal_temp_threshold_sweep.csv`
+- `artifacts/asf_dryad_validation/asf_per_pig_timeline.csv`
+- `artifacts/asf_dryad_validation/asf_daily_summary.csv`
+
 ## 3. 결과
 
 | | symptomatic (실제 증상 있음) | asymptomatic (실제 정상) |
@@ -82,3 +91,15 @@ AI Hub 데이터에 적용했을 때 영향은 작다: `bioenergy_clean_baseline
 ## 7. 발표에 쓸 수 있는 한 줄
 
 > "실제 ASF 챌린지 스터디(공개 데이터, Dryad)로 온도 규칙 threshold를 스윕 검증해 40.5도에서 39.5도로 조정했다. 정밀도 95%(오탐 1/226)를 유지하면서 재현율을 41%에서 49%로 끌어올렸고, 그럼에도 단일 온도값만으로는 재현율이 60%를 넘지 못한다는 구조적 한계를 확인해 모델 기반 이상탐지를 함께 쓰는 근거로 삼았다."
+
+## 8. Dryad 종합 분석 결과
+
+`pig-asf-dryad-analysis`로 실제 challenge 구간을 다시 병합해 확인했다.
+
+- 39.5도 기준: TP 19, FN 20, FP 1, TN 186
+- sensitivity 48.7%, specificity 99.5%, precision 95.0%
+- 중증 개체(Farm #13, #15, #17)는 첫 증상일과 같은 날 온도 규칙이 발동했다.
+- SPF #1967은 첫 증상일(day 7)보다 하루 전(day 6)에 온도 규칙이 먼저 발동했다.
+- Farm #14, SPF #1973처럼 임상점수는 있지만 온도 규칙/viral load가 뚜렷하지 않은 개체도 있었다.
+
+해석: ASF Dryad는 온도 규칙의 정밀도는 강하게 지지하지만, 단일 온도 규칙만으로는 경증/일부 중등 증상을 놓친다. viral load와 leukocyte는 ASF 특이성이 높지만 현재 돈방 IoT 입력에는 없으므로, 조기 선별 모델의 입력이 아니라 확진/수의검사 단계의 보조 근거로 분리하는 게 맞다.

@@ -80,6 +80,7 @@ pig-aihub list
 
 ```text
 622: 지능형 스마트축사 통합 데이터(양돈)
+71471: 소(한우, 젖소) 및 돼지 발정행동 데이터
 ```
 
 ## 5. 데이터셋 622의 파일 목록 조회
@@ -230,10 +231,27 @@ open artifacts/activity_model_10min/lstm_val_results.csv
 프로젝트를 모르는 사람에게 설명할 때는 아래 문서를 먼저 보여주면 됩니다.
 
 ```bash
-open docs/MODEL_EXPLANATION_FOR_NEWCOMERS.md
+open ../00_overview/MODEL_EXPLANATION_FOR_NEWCOMERS.md
 ```
 
-## 15. 문제가 생겼을 때
+## 15. 71471 발정행동 데이터 확인
+
+71471은 ASF 데이터가 아니라 행동 변화 보강 후보입니다. 원천 이미지/영상보다 라벨과 메타데이터부터 확인합니다.
+
+```bash
+pig-aihub recommended --dataset-key 71471
+bash scripts/inspect_aihub_71471.sh
+```
+
+`artifacts/aihub_71471_file_tree.txt`에서 돼지 라벨/메타데이터에 해당하는 작은 파일의 `filekey`를 고른 뒤 다운로드합니다.
+
+```bash
+bash scripts/download_aihub_71471_labels.sh
+```
+
+다운로드 후에는 라벨 스키마를 보고 `pig-normalize`에 71471 전용 매핑을 추가할지 결정합니다.
+
+## 16. 문제가 생겼을 때
 
 ### `AIHUB_API_KEY is not set`
 
@@ -285,4 +303,3 @@ chmod +x /Users/bangjiwon/dev/pigproject/bin/aihubshell
 4. `pig-aihub list`가 되는지 확인합니다.
 
 여기까지 성공하면 이후 다운로드, 변환, 학습, 탐지는 모두 위 명령어 순서대로 진행하면 됩니다.
-

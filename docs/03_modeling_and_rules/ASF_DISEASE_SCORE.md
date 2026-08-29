@@ -25,6 +25,8 @@ disease_score = model_component + rule_score
 - `severity_weight`: high=1.0, medium=0.6, low=0.3 (`config/domain_rules.json`의 규칙별 `severity` 필드 기준)
 - `co_occurrence_bonus`: 규칙이 2개 이상 동시에 걸리면 추가 규칙 1개당 +0.3. 예를 들어 `rectal_temp_high`(고열, high=1.0) 하나만 걸리면 rule_score=1.0이지만, 여기에 `feed_drop`(medium=0.6)까지 같이 걸리면 rule_score = 1.0 + 0.6 + 0.3(보너스) = 1.9로, 단순 합(1.6)보다 더 크게 나온다.
 - `model_component`: 모델 재구성 오차가 threshold의 몇 배인지를 0.5 가중치로 반영하고, 2배에서 상한을 둬서 한 window의 극단값이 점수를 독점하지 않게 했다.
+- `rule_observation`: 낮은 심각도 환경 신호(`co2_high` 같은 low severity)도 기록한다.
+- `rule_anomaly`: category별 기준을 넘은 경우 최종 경보 후보로 올린다. 현재 기준은 disease 0.8, management 0.6, environment 0.8이다. low severity 단독 신호는 관찰로만 남기고, 복합 신호나 중간 이상 신호만 category alert로 승격한다.
 
 ## 3. Tier 구분
 
@@ -38,9 +40,18 @@ disease_score = model_component + rule_score
 
 ## 4. 현재 데이터에서 확인된 것
 
-`bioenergy_clean_baseline` 기준: rule anomaly 19건이 전부 `71408`의 `rectal_temp_high` 단독 발생이라, 동시발생 보너스가 붙을 일이 없어 전부 disease_tier=`medium`(1.18~1.35)에 머문다. `high` tier(1.5 이상)로 올라가려면 규칙 2개 이상이 겹치거나 모델 anomaly와 규칙이 동시에 걸려야 하는데, 지금 AI Hub 데이터에는 그런 복합 사례가 없다.
+`bioenergy_clean_baseline` 기준 최신 rule layer는 사양관리/환경 규칙을 포함한다. 현재 실제 validation window에서는 `feed_drop`, `water_drop`, `ventilation_low`가 직접 걸리지는 않았고, 추가로 걸린 것은 `co2_high`, `nh3_high` 환경 신호다. 낮은 심각도 단독 환경 신호는 `rule_observation`으로만 남기고, `co2_high + nh3_high`처럼 동시발생으로 `environment_rule_score >= 0.8`이 된 경우만 환경 경보로 승격한다.
 
-이건 다음 계획(5순위: 합성 ASF 증상 조합 주입 테스트)에서 "정말 여러 증상이 겹치면 high로 올라가는지" 직접 검증해야 하는 이유이기도 했다.
+최신 결과:
+
+- 전체 bioenergy validation window: 61
+- rule observation: 41
+- rule anomaly: 26
+- high tier: 10 (`rectal_temp_high + co2_high`)
+- medium tier: 16 (`rectal_temp_high` 단독 또는 `co2_high + nh3_high`)
+- final ensemble alert window: 20 -> 26
+
+이 결과는 규칙 추가만으로 경보 범위를 넓힐 수 있음을 보여준다. 다만 현재 보유 데이터에서는 급이/급수 급감 자체가 validation window에 나타나지 않아 `feed_drop`, `water_drop` recall 개선은 실제 또는 주입형 테스트 데이터에서 따로 확인해야 한다.
 
 ### 검증 완료 (`scripts/verify_disease_score_cooccurrence.py`)
 

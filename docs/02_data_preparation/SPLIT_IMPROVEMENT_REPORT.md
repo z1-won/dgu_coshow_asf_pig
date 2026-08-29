@@ -2,7 +2,7 @@
 
 작성일: 2026-08-26
 
-> **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: 이 문서의 split 결과(window 수, train/val 분할)는 그대로 유효합니다. 다만 이후 scaler를 돈방별로 따로 학습하도록 바꾸면서 (`fit_scalers_per_chamber`, `src/pigproject/bioenergy_pipeline.py`), 이 split으로 학습한 모델의 anomaly 수치가 달라졌습니다. 최신 threshold/anomaly 결과는 [docs/THRESHOLD_COMPARISON_REPORT.md](THRESHOLD_COMPARISON_REPORT.md) 업데이트 노트를 참고하세요.
+> **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: 이 문서의 split 결과(window 수, train/val 분할)는 그대로 유효합니다. 다만 이후 scaler를 돈방별로 따로 학습하도록 바꾸면서 (`fit_scalers_per_chamber`, `src/pigproject/bioenergy_pipeline.py`), 이 split으로 학습한 모델의 anomaly 수치가 달라졌습니다. 최신 threshold/anomaly 결과는 [../04_evaluation_validation/THRESHOLD_COMPARISON_REPORT.md](../04_evaluation_validation/THRESHOLD_COMPARISON_REPORT.md) 업데이트 노트를 참고하세요.
 
 ## 목적
 

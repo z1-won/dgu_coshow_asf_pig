@@ -3,7 +3,7 @@
 작성일: 2026-08-26  
 프로젝트 경로: `/Users/bangjiwon/dev/pigproject`
 
-> **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: 5절의 `bioenergy_clean_baseline_no_nh3` 수치가 바뀌었습니다. `p99 threshold: 1.442694` → `2.298732`. `excluded_rows`도 26개에서 0개로 바뀌었습니다(자세한 이유는 [CLEAN_BASELINE_MODEL_REPORT.md](CLEAN_BASELINE_MODEL_REPORT.md) 업데이트 노트 참고). raw anomaly 1개, confirmed anomaly 0개는 동일합니다. 이 문서의 rule layer 설계 방향 자체는 그대로 유효합니다.
+> **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: 5절의 `bioenergy_clean_baseline_no_nh3` 수치가 바뀌었습니다. `p99 threshold: 1.442694` → `2.298732`. `excluded_rows`도 26개에서 0개로 바뀌었습니다(자세한 이유는 [CLEAN_BASELINE_MODEL_REPORT.md](../03_modeling_and_rules/CLEAN_BASELINE_MODEL_REPORT.md) 업데이트 노트 참고). raw anomaly 1개, confirmed anomaly 0개는 동일합니다. 이 문서의 rule layer 설계 방향 자체는 그대로 유효합니다.
 
 ## 1. 질문
 

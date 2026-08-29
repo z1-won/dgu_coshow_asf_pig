@@ -104,20 +104,33 @@ def split_by_group_time(
     train_ratio: float,
     seq_len: int,
     min_val_windows: int = 10,
+    group_cols: tuple[str, ...] = ("dataset_key", "chamber_number"),
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Chronological per-group split that guarantees at least min_val_windows validation windows.
+
+    Generalized over group_cols so the same guarantee (and the same
+    overlap_for_short_group escape hatch for groups too short to give both
+    splits a full window) applies to any per-entity time series, not just
+    bio-energy chambers -- see activity_model_dataset.split_train_val, which
+    calls this with group_cols=("facility_number", "pen_number") because the
+    622 dataset's own train/validation split leaves 3 of 9 pens with fewer
+    rows than one window's worth of validation data.
+    """
+    group_cols = list(group_cols)
     train_parts = []
     val_parts = []
     summary_rows = []
     min_val_len = seq_len + min_val_windows - 1
 
-    for (dataset_key, chamber_number), group in df.groupby(["dataset_key", "chamber_number"], dropna=False):
+    for group_key, group in df.groupby(group_cols, dropna=False):
+        key_values = group_key if isinstance(group_key, tuple) else (group_key,)
+        key_dict = dict(zip(group_cols, key_values))
         group = group.sort_values("datetime")
         total_rows = len(group)
         if total_rows < seq_len:
             summary_rows.append(
                 {
-                    "dataset_key": dataset_key,
-                    "chamber_number": chamber_number,
+                    **key_dict,
                     "total_rows": total_rows,
                     "train_rows": 0,
                     "val_rows": 0,
@@ -156,8 +169,7 @@ def split_by_group_time(
 
         summary_rows.append(
             {
-                "dataset_key": dataset_key,
-                "chamber_number": chamber_number,
+                **key_dict,
                 "total_rows": total_rows,
                 "train_rows": len(train_group),
                 "val_rows": len(val_group),
@@ -225,6 +237,34 @@ def create_sequences(df: pd.DataFrame, feature_columns: list[str], seq_len: int)
     return np.asarray(sequences, dtype=np.float32)
 
 
+def fill_features_with_quality_report(
+    df: pd.DataFrame, feature_columns: list[str]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Fill model features and report exactly how many values were imputed.
+
+    Median fill is the normal path for sparse numeric gaps. Zero fill is only
+    the fallback for columns whose median is still unavailable, so it must be
+    visible in artifacts instead of silently changing the model input.
+    """
+    filled = df.copy()
+    missing_before = filled[feature_columns].isna()
+    medians = filled[feature_columns].median(numeric_only=True)
+    median_filled = missing_before & medians.notna().reindex(feature_columns, fill_value=False)
+    filled[feature_columns] = filled[feature_columns].fillna(medians)
+    still_missing = filled[feature_columns].isna()
+    filled[feature_columns] = filled[feature_columns].fillna(0)
+
+    quality_summary = pd.DataFrame(
+        {
+            "feature": feature_columns,
+            "missing_before_fill": missing_before[feature_columns].sum().to_numpy(),
+            "filled_by_median": median_filled[feature_columns].sum().to_numpy(),
+            "zero_filled": still_missing[feature_columns].sum().to_numpy(),
+        }
+    )
+    return filled, quality_summary
+
+
 def build_bioenergy_sequences(
     inputs: list[str | Path],
     output_dir: str | Path,
@@ -256,8 +296,8 @@ def build_bioenergy_sequences(
         feature_columns = [col for col in feature_columns if col not in excluded]
     if not feature_columns:
         raise ValueError("No feature columns remain after include/exclude filtering.")
-    aggregated[feature_columns] = aggregated[feature_columns].fillna(aggregated[feature_columns].median())
-    aggregated[feature_columns] = aggregated[feature_columns].fillna(0)
+    aggregated, quality_summary = fill_features_with_quality_report(aggregated, feature_columns)
+    quality_summary.to_csv(output / "bioenergy_data_quality_report.csv", index=False)
     train_df, val_df, split_summary = split_by_group_time(
         aggregated,
         train_ratio=train_ratio,

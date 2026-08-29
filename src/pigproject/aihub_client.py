@@ -99,11 +99,15 @@ def recommended_downloads(dataset_key: str | None = None) -> str:
             lines.append(f"{key}: not found")
             continue
         lines.append(f"{key}: {item.get('name')} [{item.get('track')}]")
+        note = item.get("note")
+        if note:
+            lines.append(f"  note: {note}")
         for rec in item.get("recommended_first_downloads", []):
+            file_key = rec.get("file_key") or "TBD after `pig-aihub files`"
             lines.append(
                 "  - "
                 f"{rec.get('split')} / {rec.get('modality')} / {rec.get('filename')} "
-                f"({rec.get('size')}) filekey={rec.get('file_key')} "
+                f"({rec.get('size')}) filekey={file_key} "
                 f"- {rec.get('reason')}"
             )
     return "\n".join(lines) + "\n"

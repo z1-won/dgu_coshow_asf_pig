@@ -15,6 +15,7 @@ from pigproject.bioenergy_pipeline import (
     aggregate_by_time,
     create_sequences,
     fit_scalers_per_chamber,
+    fill_features_with_quality_report,
     read_inputs,
     split_by_group_time,
     transform_per_chamber,
@@ -106,8 +107,8 @@ def build_clean_baseline(
         feature_columns = [col for col in feature_columns if col not in excluded]
     if not feature_columns:
         raise ValueError("No feature columns remain after include/exclude filtering.")
-    clean[feature_columns] = clean[feature_columns].fillna(clean[feature_columns].median())
-    clean[feature_columns] = clean[feature_columns].fillna(0)
+    clean, quality_summary = fill_features_with_quality_report(clean, feature_columns)
+    quality_summary.to_csv(output / "bioenergy_data_quality_report.csv", index=False)
 
     train_df, val_df, split_summary = split_by_group_time(
         clean,

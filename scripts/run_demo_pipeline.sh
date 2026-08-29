@@ -16,6 +16,11 @@
 # aihub_71763_features.csv must already exist (see README.md "정규화" step
 # -- these come from AI Hub downloads, not reproduced here).
 #
+# The activity (622) track and the final cross-track ensemble step run only
+# when data/processed/aihub_622_activity_timeseries_10min.csv is present --
+# see README.md "행동량 feature를 10분 단위 시계열로 묶으려면". Without it
+# the script still produces the full bioenergy pipeline on its own.
+#
 # Usage: bash scripts/run_demo_pipeline.sh
 
 set -euo pipefail
@@ -28,6 +33,9 @@ INPUT_71763="data/processed/aihub_71763_features.csv"
 SPLIT_DIR="artifacts/bioenergy_split_v2"
 FINAL_DIR="artifacts/bioenergy_clean_baseline"
 RULES="config/domain_rules.json"
+
+INPUT_ACTIVITY="data/processed/aihub_622_activity_timeseries_10min.csv"
+ACTIVITY_DIR="artifacts/activity_model_10min"
 
 for f in "$INPUT_71408" "$INPUT_71763"; do
   if [ ! -f "$f" ]; then
@@ -73,6 +81,19 @@ pig-explain-bioenergy --artifact-dir "$FINAL_DIR"
 pig-baseline-overview --artifact-dir "$FINAL_DIR" --seq-len 24
 pig-apply-rules --artifact-dir "$FINAL_DIR" --rules "$RULES" --seq-len 24
 
+if [ -f "$INPUT_ACTIVITY" ]; then
+  echo
+  echo "=== 3/3: activity_622 (behavior track) + final chamber ensemble ==="
+  pig-build-activity-model --input "$INPUT_ACTIVITY" --output-dir "$ACTIVITY_DIR" --seq-len 24
+  pig-train --artifact-dir "$ACTIVITY_DIR" --epochs 50 --batch-size 16
+  pig-detect --artifact-dir "$ACTIVITY_DIR" --percentile 99 --consecutive-required 3
+  pig-activity-report --artifact-dir "$ACTIVITY_DIR"
+  pig-final-ensemble --bioenergy-dir "$FINAL_DIR" --activity-dir "$ACTIVITY_DIR"
+else
+  echo
+  echo "=== 3/3: skipped (missing $INPUT_ACTIVITY -- see README.md for the 622 activity steps) ==="
+fi
+
 echo
 echo "=== sanity check: pytest ==="
 python -m pytest -q
@@ -89,3 +110,8 @@ echo "  $FINAL_DIR/bioenergy_combined_alert_report.md  (모델+규칙 결합 dis
 echo "  $FINAL_DIR/bioenergy_pca_cluster_scatter.jpg    (정상 군집 시각화)"
 echo "  $FINAL_DIR/bioenergy_error_scatter.jpg          (threshold 대비 오차 분포)"
 echo "  $FINAL_DIR/threshold_confidence.csv             (부트스트랩 신뢰구간)"
+if [ -f "$INPUT_ACTIVITY" ]; then
+  echo "  $ACTIVITY_DIR/lstm_detection_report.md          (activity_622 track 단독 모델 결과)"
+  echo "  artifacts/final_chamber_alert_report.md         (두 track 통합 최종 돈방 경보)"
+  echo "  data/processed/final_chamber_anomaly_scores.csv (window 단위 통합 점수)"
+fi

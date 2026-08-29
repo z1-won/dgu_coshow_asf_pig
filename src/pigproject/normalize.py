@@ -167,7 +167,7 @@ def get_nested(data: dict[str, object], *path: str) -> object:
 
 def infer_dataset_key(path: Path) -> str:
     parts = set(path.parts)
-    for key in ("622", "71408", "71763"):
+    for key in ("622", "71408", "71763", "71471"):
         if key in parts:
             return key
     return ""
