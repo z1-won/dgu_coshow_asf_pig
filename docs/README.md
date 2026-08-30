@@ -5,6 +5,7 @@
 
 ## 1. 먼저 읽을 문서
 
+0. [프로젝트 종합 스코어카드 (발표/심사용 한 장 요약)](00_overview/PROJECT_SCORECARD.md)
 1. [프로젝트 전체 흐름](00_overview/PROJECT_OVERVIEW_BIGDATA_FLOW.md)
 2. [프로젝트 방향 및 세부 계획](00_overview/PROJECT_DIRECTION_DETAILED_PLAN.md)
 3. [초심자용 모델 설명](00_overview/MODEL_EXPLANATION_FOR_NEWCOMERS.md)
@@ -16,7 +17,10 @@
 9. [ClearFarm/RFID/Feeding 데이터 활용 계획](01_data_understanding/CLEARFARM_RFID_FEEDING_DATA_USAGE_PLAN.md)
 10. [외부 검증 요약](04_evaluation_validation/EXTERNAL_VALIDATION_SUMMARY.md)
 10-1. [Wearable Stress Biosensor 검증](04_evaluation_validation/STRESS_BIOSENSOR_VALIDATION.md)
+10-2. [PRRSV 외부 검증](04_evaluation_validation/PRRSV_EXTERNAL_VALIDATION_REPORT.md)
+10-3. [ClearFarm 비육돈 규칙/LSTM baseline 검증](04_evaluation_validation/CLEARFARM_RULE_VALIDATION_REPORT.md)
 11. [규칙 기반 판단 가이드](03_modeling_and_rules/DOMAIN_RULE_GUIDANCE.md)
+11-1. [농장별 상대 threshold 설계안](03_modeling_and_rules/FARM_RELATIVE_THRESHOLD_DESIGN.md)
 12. [위험 카테고리 경보](05_operations_feedback/RISK_CATEGORY_ALERTS.md)
 13. [다음 작업 계획](00_overview/NEXT_STEPS.md)
 

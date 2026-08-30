@@ -66,11 +66,29 @@ pig-calibrate-rules --dataset clearfarm --percentile 95 --output config/domain_r
 2. `rule_candidate_config.py`(candidate config 생성) + `rule_config_compare.py`(비교 리포트)가 이미 있어서, 옵션 B는 기존 도구를 거의 그대로 재사용할 수 있다 -- 새 코드가 적다.
 3. 옵션 A(규칙 엔진 자체에 relative 타입 내장)는 여러 농장 데이터가 실제로 쌓이기 시작하면(지금은 ClearFarm 하나) 그때 정식으로 설계하는 게 낫다 -- 지금 하나의 사례만으로 엔진을 일반화하면 과설계 위험이 있다.
 
-## 다음 단계 (실행하지 않고 제안만)
+## 실행 결과 (2026-08-30)
 
-1. `pig-build-rule-candidate-config`류 CLI를 확장해서, 절대 threshold 대신 특정 데이터셋의 percentile 기반 threshold를 자동 계산하는 옵션 추가
-2. ClearFarm 기준 `config/domain_rules_clearfarm.json` 생성 (co2_high=2984, nh3_high=29, barn_temp_high=31.6, feed_drop은 이미 -1.5 그대로 사용 가능함을 확인함)
-3. 이 candidate config로 `clearfarm_rule_validation.py`를 다시 돌려 precision/sensitivity가 위 표와 일치하는지 회귀 검증
-4. 농장이 2개 이상 쌓이면 옵션 A(규칙 엔진 내장) 재검토
+2단계를 실제로 실행했다. 기존 `pig-build-rule-candidate-config`(옵션 B 전제 도구)가 이미 다중 threshold override를 지원해서 새 코드 없이 바로 썼다.
 
-**주의**: 이 문서는 설계 제안이며 `config/domain_rules.json`(메인 파이프라인이 실제로 쓰는 파일)은 수정하지 않았다. 실제 config 변경은 별도 승인 후 진행한다.
+```bash
+pig-build-rule-candidate-config \
+  --base-config config/domain_rules.json \
+  --overrides "co2_high=2984,nh3_high=29,barn_temp_high=31.6" \
+  --output-config config/domain_rules_clearfarm.json
+pig-compare-rule-configs \
+  --artifact-dir artifacts/bioenergy_clean_baseline \
+  --baseline-rules config/domain_rules.json \
+  --candidate-rules config/domain_rules_clearfarm.json
+```
+
+**중요한 발견**: 이 ClearFarm 캘리브레이션 config를 메인 AI Hub 파이프라인 데이터(`bioenergy_clean_baseline`)에 그대로 적용해보면, disease alert는 20개로 유지되지만 **environment alert가 6개에서 0개로 전부 사라진다** (`artifacts/clearfarm_rule_validation/rule_config_compare_report.md`). ClearFarm 기준으로 훨씬 높게 잡은 CO2/NH3 threshold가 AI Hub의 (상대적으로 낮은) CO2/NH3 값에는 아예 걸리지 않기 때문이다.
+
+이건 이 설계안의 핵심 주장을 다시 한번 실증한다: **ClearFarm 전용으로 만든 config는 ClearFarm에서만 써야 하고, 다른 데이터셋(AI Hub)에 그대로 재사용하면 안 된다.** `config/domain_rules_clearfarm.json`은 그 용도로만 유지하고, 메인 파이프라인이 실제로 읽는 `config/domain_rules.json`은 이번에도 수정하지 않았다.
+
+## 다음 단계 (아직 실행 안 함)
+
+1. ~~ClearFarm 기준 `config/domain_rules_clearfarm.json` 생성~~ 완료
+2. `clearfarm_rule_validation.py`가 하드코딩된 threshold 상수 대신 `config/domain_rules_clearfarm.json`을 직접 읽도록 리팩터링 (지금은 상수와 config 파일 값이 우연히 같을 뿐, 코드로 연결돼 있지 않음)
+3. 농장이 2개 이상 쌓이면 옵션 A(규칙 엔진 내장) 재검토
+
+**주의**: `config/domain_rules.json`(메인 파이프라인이 실제로 쓰는 파일)은 여전히 수정하지 않았다. 실제 config 교체(예: 메인 파이프라인이 데이터셋별로 다른 config를 자동 선택하게 만드는 것)는 별도 승인 후 진행한다.

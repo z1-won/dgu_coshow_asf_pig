@@ -95,6 +95,61 @@ else
 fi
 
 echo
+echo "=== 4/4: external validation tracks (each skips if its raw data is missing) ==="
+
+WEARABLE_RAW="data/raw/external/wearable_stress_biosensor/Supplementary File S1.csv"
+WEARABLE_DIR="artifacts/wearable_stress_biosensor_sanity_check"
+if [ -f "$WEARABLE_RAW" ]; then
+  echo "--- Wearable Stress Biosensor ---"
+  pig-normalize-stress-biosensor
+  pig-build-stress-biosensor-dataset
+  pig-train --artifact-dir "$WEARABLE_DIR" --epochs 100 --batch-size 16
+  pig-evaluate-stress-biosensor
+else
+  echo "--- Wearable Stress Biosensor: skipped (missing $WEARABLE_RAW) ---"
+fi
+
+PRRSV_RAW="data/raw/external/prrsv_play_study/PRRSV_Play_study_Clinical_signs__rectal_temperature_and_medical_treatments.xlsx"
+if [ -f "$PRRSV_RAW" ]; then
+  echo "--- PRRSV Play Study ---"
+  pig-prrsv-play-analysis
+else
+  echo "--- PRRSV Play Study: skipped (missing $PRRSV_RAW) ---"
+fi
+
+RFID_RAW="data/raw/external/rfid_lorawan_movement_17266727/MOVEMENT_Final.csv"
+if [ -f "$RFID_RAW" ]; then
+  echo "--- RFID-LoRaWAN movement baseline ---"
+  pig-build-rfid-movement-features
+else
+  echo "--- RFID-LoRaWAN: skipped (missing $RFID_RAW) ---"
+fi
+
+FEEDING_5126661_RAW="data/raw/external/pig_feeding_behavior_5126661/feedingbehaviour.txt"
+if [ -f "$FEEDING_5126661_RAW" ]; then
+  echo "--- 5126661 feeding reference ---"
+  pig-build-feeding-reference
+else
+  echo "--- 5126661 feeding reference: skipped (missing $FEEDING_5126661_RAW) ---"
+fi
+
+CLEARFARM_RAW_DIR="data/raw/external/clearfarm_growing_finishing"
+CLEARFARM_PEN_DAY="data/processed/external/clearfarm/clearfarm_pen_day.csv"
+CLEARFARM_BASELINE_DIR="artifacts/clearfarm_baseline"
+if [ -d "$CLEARFARM_RAW_DIR" ]; then
+  echo "--- ClearFarm (비육돈): rule validation + LSTM baseline ---"
+  if [ ! -f "$CLEARFARM_PEN_DAY" ]; then
+    pig-build-clearfarm-pen-day
+  fi
+  pig-validate-clearfarm-rules
+  pig-build-clearfarm-baseline
+  pig-train --artifact-dir "$CLEARFARM_BASELINE_DIR" --epochs 100 --batch-size 16
+  pig-evaluate-clearfarm-baseline
+else
+  echo "--- ClearFarm: skipped (missing $CLEARFARM_RAW_DIR) ---"
+fi
+
+echo
 echo "=== sanity check: pytest ==="
 python -m pytest -q
 
@@ -114,4 +169,9 @@ if [ -f "$INPUT_ACTIVITY" ]; then
   echo "  $ACTIVITY_DIR/lstm_detection_report.md          (activity_622 track 단독 모델 결과)"
   echo "  artifacts/final_chamber_alert_report.md         (두 track 통합 최종 돈방 경보)"
   echo "  data/processed/final_chamber_anomaly_scores.csv (window 단위 통합 점수)"
+fi
+echo "  docs/00_overview/PROJECT_SCORECARD.md           (발표/심사용 한 장 요약, 전체 외부 검증 트랙 포함)"
+if [ -d "$CLEARFARM_RAW_DIR" ]; then
+  echo "  $CLEARFARM_BASELINE_DIR/clearfarm_baseline_detection_report.md (ClearFarm 비육돈 LSTM baseline)"
+  echo "  artifacts/clearfarm_rule_validation/clearfarm_composite_rules_report.md (ClearFarm 규칙 검증 종합)"
 fi

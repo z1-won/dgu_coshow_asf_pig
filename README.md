@@ -4,6 +4,8 @@
 
 목표는 ASF 확진이 아니라, 정상 패턴에서 벗어나는 돈방을 조기 선별하는 것입니다. 정상 데이터만으로 모델을 학습하고 재구성 오차 또는 One-Class 점수를 이용해 경보 후보를 찾습니다.
 
+발표/심사용 한 장 요약은 [docs/00_overview/PROJECT_SCORECARD.md](docs/00_overview/PROJECT_SCORECARD.md), 시각 대시보드는 [claude.ai/code/artifact/2bd24514-948a-408b-886a-f6eff4900466](https://claude.ai/code/artifact/2bd24514-948a-408b-886a-f6eff4900466)를 참고하세요.
+
 ## 빠른 재현 (발표/데모용)
 
 `data/processed/aihub_71408_features.csv`, `aihub_71763_features.csv`가 이미 있다면(아래 "설치" 이후 단계), 아래 한 줄로 최종 모델(`artifacts/bioenergy_clean_baseline`)과 규칙 결합 리포트까지 한 번에 재현됩니다.
@@ -34,6 +36,12 @@ bash scripts/run_demo_pipeline.sh
 - `pig-build-aihub-71471-timeseries`: 71471 라벨을 정규화하고 10분 행동 시계열 생성
 - `pig-compare-aihub-71471-622`: 71471과 622 행동량 feature 호환성 비교
 - `pig-aihub-71471-baseline`: 71471 전용 행동 baseline 학습 및 `ESTRUS=Y` 구간 평가
+- `pig-normalize-stress-biosensor` / `pig-build-stress-biosensor-dataset` / `pig-evaluate-stress-biosensor`: 웨어러블 바이오센서(심박/호흡/자세) 격리 스트레스 sanity check
+- `pig-prrsv-play-analysis`: PRRSV challenge 데이터로 체온/활동량 규칙 재검증
+- `pig-build-rfid-movement-features`: RFID-LoRaWAN 활동량 정상 baseline
+- `pig-build-feeding-reference`: 개체별 정상 급이량 reference table
+- `pig-validate-clearfarm-rules`: ClearFarm 비육돈 실제 농장 데이터로 feed_drop/co2_high/nh3_high/barn_temp_high 규칙 검증
+- `pig-build-clearfarm-baseline` / `pig-evaluate-clearfarm-baseline`: ClearFarm 전용 LSTM Autoencoder baseline (모델 기반, 비육돈)
 
 ## 설치
 
@@ -93,6 +101,51 @@ pig-aihub download --dataset-key 데이터셋키 --file-key 파일키 --output-d
 - 71471 통합 계획: [docs/01_data_understanding/AIHUB_71471_INTEGRATION_PLAN.md](docs/01_data_understanding/AIHUB_71471_INTEGRATION_PLAN.md)
 - 외부 검증 요약: [docs/04_evaluation_validation/EXTERNAL_VALIDATION_SUMMARY.md](docs/04_evaluation_validation/EXTERNAL_VALIDATION_SUMMARY.md)
 - 데이터셋 매니페스트: [config/aihub_datasets.json](config/aihub_datasets.json)
+
+## 외부 데이터 검증 트랙
+
+AI Hub 데이터는 전부 "정상으로 가정"한 데이터라 진짜 이상 사례(ground truth)가 없습니다. 아래 7개 외부 공개/실측 데이터셋으로 이 프로젝트의 탐지 파이프라인(모델 + 규칙)을 검증했습니다. 메인 학습 데이터에 직접 섞지는 않고, 각각 독립된 sanity check / 규칙 검증 트랙으로 유지합니다.
+
+| # | 데이터셋 | 핵심 결과 |
+| --- | --- | --- |
+| 1 | HOTPIG (열스트레스) | TN 0.94% → HS 11.83% confirmed anomaly (12.6배) |
+| 2 | ASF Dryad (실제 ASF challenge) | 체온 규칙 sensitivity 48.7% / specificity 99.5% / precision 95.0% |
+| 3 | Behavior x Heat Tolerance | 행동+근육온도 조합에서만 강하게 분리, 행동 단독은 약함 |
+| 4 | AI Hub 71471 (발정행동) | 622와 feature mapping 17/17 가능, 메인 학습 제외 |
+| 5 | Wearable Stress Biosensor | Pair(정상) 0% vs Isolation(격리 스트레스) 39.7% confirmed anomaly |
+| 6 | PRRSV Play Study (다른 질병) | 같은 온도 threshold가 ASF(specificity 99.5%)와 PRRSV(32.9%)에서 다르게 작동 -- threshold는 생산단계별 재캘리브레이션 필요 |
+| 7 | **ClearFarm (비육돈 실제 농장)** | **프로젝트 목표(비육돈) 기준 첫 실제 성능 숫자.** feed_drop/co2_high/nh3_high/barn_temp_high 4개 규칙 전부 절대 threshold가 그대로는 안 맞음(상시발동 또는 미발동) → 재캘리브레이션 시 precision 47.5%까지 회복. ClearFarm 전용 LSTM baseline도 구축(모델 기반, 방향은 맞으나 신호는 약함) |
+
+- 종합 요약: [docs/04_evaluation_validation/EXTERNAL_VALIDATION_SUMMARY.md](docs/04_evaluation_validation/EXTERNAL_VALIDATION_SUMMARY.md)
+- ClearFarm 상세(비육돈 규칙 검증 + LSTM baseline): [docs/04_evaluation_validation/CLEARFARM_RULE_VALIDATION_REPORT.md](docs/04_evaluation_validation/CLEARFARM_RULE_VALIDATION_REPORT.md)
+- Wearable Stress Biosensor 상세: [docs/04_evaluation_validation/STRESS_BIOSENSOR_VALIDATION.md](docs/04_evaluation_validation/STRESS_BIOSENSOR_VALIDATION.md)
+- PRRSV Play Study 상세: [docs/04_evaluation_validation/PRRSV_EXTERNAL_VALIDATION_REPORT.md](docs/04_evaluation_validation/PRRSV_EXTERNAL_VALIDATION_REPORT.md)
+- 농장별 상대 threshold 설계안(다음 단계): [docs/03_modeling_and_rules/FARM_RELATIVE_THRESHOLD_DESIGN.md](docs/03_modeling_and_rules/FARM_RELATIVE_THRESHOLD_DESIGN.md)
+
+각 트랙을 직접 재현하려면:
+
+```bash
+# Wearable Stress Biosensor (심박/호흡/자세, 격리 스트레스)
+pig-normalize-stress-biosensor
+pig-build-stress-biosensor-dataset
+pig-train --artifact-dir artifacts/wearable_stress_biosensor_sanity_check --epochs 100 --batch-size 16
+pig-evaluate-stress-biosensor
+
+# PRRSV Play Study (다른 질병 challenge)
+pig-prrsv-play-analysis
+
+# RFID-LoRaWAN 활동량 baseline
+pig-build-rfid-movement-features
+
+# 5126661 정상 급이량 reference
+pig-build-feeding-reference
+
+# ClearFarm 비육돈 규칙 검증 + LSTM baseline
+pig-validate-clearfarm-rules
+pig-build-clearfarm-baseline
+pig-train --artifact-dir artifacts/clearfarm_baseline --epochs 100 --batch-size 16
+pig-evaluate-clearfarm-baseline
+```
 
 다운로드 또는 샘플 폴더를 모델용 CSV로 정규화하려면:
 
