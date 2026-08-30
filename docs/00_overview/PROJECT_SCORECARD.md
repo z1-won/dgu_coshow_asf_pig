@@ -81,7 +81,19 @@ AI Hub 데이터는 전부 "정상으로 가정"한 데이터라 진짜 이상 �
 - `config/domain_rules.json`의 절대 threshold는 ClearFarm 검증에서 데이터셋마다 다르게 실패한다는 게 확인됐지만, 아직 프로덕션에 재캘리브레이션이 반영되지 않았다.
 - CCTV 기반 개체 특정, 관리자 대시보드는 아직 미완성이다.
 
-## 7. 다음 단계 우선순위
+## 7. 특허 후보 (CO-SHOW 채점: 특허출원 가능성 25점)
+
+3건 선정, 선행기술(`1020210047517`, `KR101133719B1`) 대비 차별점 정리 완료. 확정된 특허성 판단이 아니라 변리사 상담 전 1차 스크리닝이다.
+
+| 후보 | 핵심 | 실측 근거 |
+| --- | --- | --- |
+| 1. 농장별 상대 threshold 자동 캘리브레이션 | 고정 threshold 대신 농장 자체 분포로 재계산 | barn_temp_high 40도(0%)→31.6도(47.5%) |
+| 2. Disease/Management/Environment 분리형 co-occurrence 스코어링 | 카테고리는 분리, 동시발생은 재통합 | feed_drop+co2_high precision 41%→46.2%, 3중 결합은 tp=0 |
+| 3. 이종 시간축/개체군 트랙 표준화 결합 | 물리적으로 안 겹치는 두 데이터셋 점수를 하나의 돈방 경보로 | `final_ensemble.py` 구현 완료, 실가중결합은 검증 대기 |
+
+상세(청구항 초안 포함): [PATENT_CANDIDATES.md](../06_ip_and_business/PATENT_CANDIDATES.md) &middot; 상담 요청 자료: [CONSULTATION_PACKAGE.md](../06_ip_and_business/CONSULTATION_PACKAGE.md)
+
+## 8. 다음 단계 우선순위
 
 1. 농장별 상대 threshold를 `domain_rules.json`/`domain_rules.py`에 실제로 반영 (설계는 완료, 구현 대기)
 2. 팀원 YOLO 결과와 CCTV 집중 분석 연동

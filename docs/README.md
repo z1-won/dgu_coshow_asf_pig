@@ -23,6 +23,8 @@
 11-1. [농장별 상대 threshold 설계안](03_modeling_and_rules/FARM_RELATIVE_THRESHOLD_DESIGN.md)
 12. [위험 카테고리 경보](05_operations_feedback/RISK_CATEGORY_ALERTS.md)
 13. [다음 작업 계획](00_overview/NEXT_STEPS.md)
+14. [특허 후보 노트](06_ip_and_business/PATENT_CANDIDATES.md)
+14-1. [산학협력단/변리사 상담 요청 자료](06_ip_and_business/CONSULTATION_PACKAGE.md)
 
 ## 2. 폴더 구조
 
@@ -34,6 +36,7 @@
 | `03_modeling_and_rules` | LSTM baseline, 온도 보정, domain rule, disease score | `DOMAIN_RULE_GUIDANCE.md` |
 | `04_evaluation_validation` | threshold, 외부 검증, sanity check, ensemble 판단 | `EXTERNAL_VALIDATION_SUMMARY.md` |
 | `05_operations_feedback` | 현장 이벤트, action queue, review feedback | `RISK_CATEGORY_ALERTS.md` |
+| `06_ip_and_business` | 특허 후보, 사업화 방향 | `PATENT_CANDIDATES.md` |
 
 ## 3. 한 줄 요약
 
