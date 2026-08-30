@@ -81,6 +81,9 @@ pig-evaluate-stress-biosensor = "pigproject.wearable_stress_biosensor_evaluate:m
 pig-prrsv-play-analysis = "pigproject.prrsv_play_study_analysis:main"
 pig-build-rfid-movement-features = "pigproject.rfid_lorawan_movement_features:main"
 pig-build-feeding-reference = "pigproject.pig_feeding_behavior_reference:main"
+pig-validate-clearfarm-rules = "pigproject.clearfarm_rule_validation:main"
+pig-build-clearfarm-baseline = "pigproject.clearfarm_baseline:main"
+pig-evaluate-clearfarm-baseline = "pigproject.clearfarm_baseline_evaluate:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

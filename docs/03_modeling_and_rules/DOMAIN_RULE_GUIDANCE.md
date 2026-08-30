@@ -4,6 +4,8 @@
 프로젝트 경로: `/Users/bangjiwon/dev/pigproject`
 
 > **업데이트 (2026-08-26, 돈방별 scaler 적용 후)**: 5절의 `bioenergy_clean_baseline_no_nh3` 수치가 바뀌었습니다. `p99 threshold: 1.442694` → `2.298732`. `excluded_rows`도 26개에서 0개로 바뀌었습니다(자세한 이유는 [CLEAN_BASELINE_MODEL_REPORT.md](../03_modeling_and_rules/CLEAN_BASELINE_MODEL_REPORT.md) 업데이트 노트 참고). raw anomaly 1개, confirmed anomaly 0개는 동일합니다. 이 문서의 rule layer 설계 방향 자체는 그대로 유효합니다.
+>
+> **업데이트 (2026-08-30, 비육돈 실제 농장 검증 이후)**: 4절의 예시 규칙들(`T_mean >= 40` 등)이 실제 비육돈 농장(ClearFarm)에서는 그대로 작동하지 않는다는 걸 확인했습니다 -- `co2_high`/`nh3_high`는 상시 발동(specificity 0%대), `barn_temp_high`(40도)는 전혀 발동 안 함(관측 최댓값 35.6도), `feed_drop`은 입력을 하루 단위로 집계하면 z-score가 수학적으로 threshold(-1.5)에 도달 못 함. 이유와 재캘리브레이션 결과는 [CLEARFARM_RULE_VALIDATION_REPORT.md](../04_evaluation_validation/CLEARFARM_RULE_VALIDATION_REPORT.md)에, "절대 threshold 하나를 여러 농장에 공유하는 대신 농장별 상대 threshold로 가야 한다"는 설계 제안은 [FARM_RELATIVE_THRESHOLD_DESIGN.md](FARM_RELATIVE_THRESHOLD_DESIGN.md)에 정리했습니다. `config/domain_rules.json`(메인 파이프라인이 실제 쓰는 파일)은 아직 수정하지 않았습니다.
 
 ## 1. 질문
 

@@ -159,6 +159,48 @@ def build_feeding_day(input_dir: str | Path, station_map: pd.DataFrame) -> pd.Da
     return grouped.reset_index(drop=True)
 
 
+def build_feeding_hour(input_dir: str | Path, station_map: pd.DataFrame) -> pd.DataFrame:
+    """Pen-hour feed intake -- the resolution `feed_drop`'s rolling z-score needs.
+
+    `clearfarm_feeding_day.csv` collapses each pen to one row per day, which
+    leaves only 3 points in any 3-day rolling window and caps the z-score at
+    +-1.1547 (see `clearfarm_rule_validation.py`), well short of the rule's
+    -1.5 threshold. The raw feeding log has a real timestamp per visit
+    (~229 valid visits/pen/day on average), so aggregating to pen-hour
+    instead of pen-day gives the 3-day window dozens of points instead of 3.
+    """
+    frames = []
+    for path in sorted(Path(input_dir).glob("Exp*/*Feeding data.csv")):
+        experiment = parse_experiment_number(path)
+        df = pd.read_csv(path)
+        df.columns = [str(c).strip() for c in df.columns]
+        if "pig.short" in df.columns and "pig" not in df.columns:
+            df = df.rename(columns={"pig.short": "pig"})
+        df["experiment"] = experiment
+        df["date"] = parse_clearfarm_date(df["date"])
+        df["station"] = pd.to_numeric(df["station"], errors="coerce")
+        df["pig"] = pd.to_numeric(df["pig"], errors="coerce")
+        df["hour"] = pd.to_numeric(df["hour"], errors="coerce")
+        df["intake"] = pd.to_numeric(df["intake"], errors="coerce")
+        df["duration"] = pd.to_numeric(df["duration"], errors="coerce")
+        tattoo = df.get("tattoo", pd.Series("", index=df.index)).astype("string").str.upper()
+        is_filling_or_ghost = tattoo.str.contains("FILLING|GHOST", na=False) | (df["pig"].fillna(0) == 0)
+        is_valid_feed_visit = (~is_filling_or_ghost) & (df["intake"] > 0) & (df["duration"] > 0)
+        df["valid_intake_kg"] = df["intake"].where(is_valid_feed_visit, 0)
+        df["is_valid_feed_visit"] = is_valid_feed_visit
+        merged = df.merge(station_map, on=["experiment", "station"], how="left")
+        frames.append(merged)
+    all_feed = pd.concat(frames, ignore_index=True)
+    all_feed = all_feed.dropna(subset=["pen_id", "date", "hour"])
+    all_feed["datetime"] = all_feed["date"] + pd.to_timedelta(all_feed["hour"], unit="h")
+    grouped = (
+        all_feed.groupby(["experiment", "pen_id", "datetime"], dropna=False)
+        .agg(feed_intake_kg=("valid_intake_kg", "sum"), feed_visits=("is_valid_feed_visit", "sum"))
+        .reset_index()
+    )
+    return grouped.sort_values(["experiment", "pen_id", "datetime"]).reset_index(drop=True)
+
+
 def build_climate_day(input_dir: str | Path) -> pd.DataFrame:
     frames = []
     for path in sorted(Path(input_dir).glob("Exp*/*Climate data.csv")):

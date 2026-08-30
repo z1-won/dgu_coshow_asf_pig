@@ -1,6 +1,6 @@
 import pandas as pd
 
-from pigproject.clearfarm_processing import normalize_pen_value, parse_clearfarm_date
+from pigproject.clearfarm_processing import build_feeding_hour, normalize_pen_value, parse_clearfarm_date
 
 
 def test_parse_clearfarm_date_handles_iso_and_yyyymmdd():
@@ -12,3 +12,26 @@ def test_normalize_pen_value_adds_experiment_suffix():
     assert normalize_pen_value("A2", 3) == "A2.3"
     assert normalize_pen_value("A2.3", 3) == "A2.3"
     assert normalize_pen_value("10", 1) == "10"
+
+
+def test_build_feeding_hour_sums_valid_visits_per_pen_hour(tmp_path):
+    exp_dir = tmp_path / "Exp1 (dec2020-feb2021)"
+    exp_dir.mkdir()
+    feeding = pd.DataFrame(
+        [
+            {"date": "2020-12-04", "tattoo": "AB12", "pig": 1, "station": 10, "intake": 0.05, "hour": 8, "duration": 20, "rate": 0.15},
+            {"date": "2020-12-04", "tattoo": "AB12", "pig": 1, "station": 10, "intake": 0.03, "hour": 8, "duration": 15, "rate": 0.12},
+            {"date": "2020-12-04", "tattoo": "AB12", "pig": 1, "station": 10, "intake": 0.10, "hour": 9, "duration": 30, "rate": 0.20},
+            {"date": "2020-12-04", "tattoo": "FILLING", "pig": 0, "station": 10, "intake": 0.02, "hour": 8, "duration": 5, "rate": 0.02},
+        ]
+    )
+    feeding.to_csv(exp_dir / "Exp1 - Feeding data.csv", index=False)
+
+    station_map = pd.DataFrame([{"experiment": 1, "station": 10, "pen_id": "A2.1", "registered_pigs": 11}])
+    result = build_feeding_hour(tmp_path, station_map)
+
+    hour8 = result[result["datetime"] == pd.Timestamp("2020-12-04 08:00:00")].iloc[0]
+    hour9 = result[result["datetime"] == pd.Timestamp("2020-12-04 09:00:00")].iloc[0]
+    assert hour8["feed_intake_kg"] == 0.08  # FILLING row excluded
+    assert hour8["feed_visits"] == 2
+    assert hour9["feed_intake_kg"] == 0.10

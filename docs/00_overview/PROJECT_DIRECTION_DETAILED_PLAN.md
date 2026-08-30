@@ -159,6 +159,8 @@ CCTV 영상
 
 반면 최종 목표인 “ASF를 AI로 진단”은 아직 25-35% 수준으로 보는 것이 안전하다. 현재 결과는 ASF 확진이 아니라 ASF 의심 신호를 포함한 돈방 이상 조기 선별이다.
 
+> **업데이트 (2026-08-30, ClearFarm 비육돈 실제 농장 검증 이후)**: 위 표의 "질병 의심도 계산"(65%), "사료/음수 이상 반영"(35%), "환경 보정"(60%)은 전부 AI Hub 데이터 기준 수치다. 이번에 처음으로 실제 비육돈 농장(ClearFarm) 건강관찰 라벨로 검증한 결과, `feed_drop`/`co2_high`/`nh3_high`/`barn_temp_high` 4개 규칙 모두 설정된 절대값 threshold가 그대로는 작동하지 않는다는 걸 확인했다(상시발동 또는 전혀 미발동). 즉 위 %는 "AI Hub 안에서 규칙이 그럴듯하게 설계됐다"는 뜻이지 "다른 농장에서도 작동한다"는 뜻이 아니었다는 게 이번에 드러났다 -- 퍼센트를 낮추기보다는, 이 격차 자체를 발표에서 정직하게 설명하고 [FARM_RELATIVE_THRESHOLD_DESIGN.md](../03_modeling_and_rules/FARM_RELATIVE_THRESHOLD_DESIGN.md)의 "농장별 상대 threshold" 다음 단계로 연결하는 게 맞다고 판단했다. 동시에 ClearFarm 건강관찰로 재캘리브레이션하면(`barn_temp_high` precision 47.5%) 규칙 방향성 자체는 유효하다는 것도 확인했다 -- 설계가 아니라 "절대값 하나 공유"라는 구현 방식의 문제라는 근거다. 상세: [CLEARFARM_RULE_VALIDATION_REPORT.md](../04_evaluation_validation/CLEARFARM_RULE_VALIDATION_REPORT.md).
+
 ## 6. 앞으로의 세부 실행 계획
 
 ### 1순위: 상반기 데이터 가용성 점검

@@ -12,6 +12,7 @@
 | 4 | AI Hub 71471 | 돼지 행동 라벨 보강 가능성 검토 | 메인 학습 제외, 보조 행동 baseline으로만 유지 |
 | 5 | Wearable Stress Biosensor (MDPI Suresh et al.) | 심박/호흡/자세 실측 신호로 격리 스트레스에 대한 파이프라인 반응성 확인 | 채택. 단, ASF 증명은 아님 |
 | 6 | PRRSV Play Study | 다른 질병(호흡기) challenge에서 체온 규칙/활동량 규칙 재검증 | 채택. threshold는 생산단계별 재캘리브레이션 필요 확인, ASF 증명은 아님 |
+| 7 | ClearFarm | 비육돈 실제 농장 데이터로 feed_drop/co2_high/nh3_high/barn_temp_high 규칙 검증 | 채택. 비육돈 기준 첫 실제 성능 숫자. 4개 규칙 전부 절대 threshold 비전이성 확인 |
 
 ## 3순위 데이터에 대한 결정
 
@@ -26,7 +27,7 @@ Behavior x Heat Tolerance 데이터는 행동만으로 열스트레스가 강하
 ## 반영 방식
 
 - 메인 모델 학습: 농장/돈방 단위 시간축이 맞는 데이터만 사용합니다.
-- 외부 검증: HOTPIG, ASF Dryad, Behavior x Heat Tolerance, AI Hub 71471, Wearable Stress Biosensor, PRRSV Play Study를 별도 산출물로 유지합니다.
+- 외부 검증: HOTPIG, ASF Dryad, Behavior x Heat Tolerance, AI Hub 71471, Wearable Stress Biosensor, PRRSV Play Study, ClearFarm을 별도 산출물로 유지합니다.
 - 리포트/발표: “외부 데이터로 모델 반응성, ASF 규칙, 생리적 feature 영향을 각각 점검했다”는 구조로 설명합니다.
 
 ## 5순위 데이터에 대한 결정
@@ -48,6 +49,17 @@ PRRSV Play Study는 ASF가 아니라 다른 호흡기 질병(PRRSV) challenge입
 - 온도 threshold를 어떻게 조정해도 sensitivity가 100%에 가깝지 않다는 결론은 ASF와 PRRSV 양쪽에서 동일하게 성립합니다.
 
 상세 내용은 `PRRSV_EXTERNAL_VALIDATION_REPORT.md`를 참고하세요.
+
+## 7순위 데이터에 대한 결정
+
+ClearFarm은 지금까지 프로젝트가 확보한 유일한 "비육돈 + 실제 건강관찰 라벨" 데이터입니다. `config/domain_rules.json`의 11개 규칙 중 ClearFarm에 해당 센서가 있는 4개(`feed_drop`, `co2_high`, `nh3_high`, `barn_temp_high`)만 검증했습니다.
+
+- `co2_high`/`nh3_high`: threshold가 너무 낮아 사실상 상시 발동(specificity 0.2%/0.0%)
+- `barn_temp_high`: threshold(40도)가 너무 높아 관측 기간 내내 한 번도 발동 안 함(관측 최댓값 35.6도)
+- `feed_drop`: 일단위 집계 데이터에서는 z-score threshold(-1.5)가 수학적으로 도달 불가능(표본 3개 z-score 이론적 최댓값 1.1547)
+- `barn_temp_high`를 ClearFarm 자체 분포(p95, 31.6도)로 재캘리브레이션하면 sensitivity 47.5% / specificity 97.1% / precision 47.5%까지 회복 -- 규칙의 방향성은 유효하며, 문제는 절대 threshold 하나를 여러 데이터셋에 공유하는 설계에 있다는 결론입니다.
+
+후속으로 feed_drop을 시간 단위로 재집계해 z-score cap 문제를 해결했고(sensitivity 37.3%/specificity 67.4%), 복합 규칙(`feed_drop AND co2_high`) 검증, ClearFarm 전용 LSTM Autoencoder baseline(모델 기반 탐지, 방향은 맞지만 약함) 구축, 농장별 상대 threshold 설계안(`../03_modeling_and_rules/FARM_RELATIVE_THRESHOLD_DESIGN.md`)까지 진행했습니다. 상세 내용은 `CLEARFARM_RULE_VALIDATION_REPORT.md`를 참고하세요.
 
 상세 산출물은 `artifacts/external_validation_summary/external_validation_summary.md`에서 재생성됩니다.
 
