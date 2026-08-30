@@ -6,6 +6,7 @@
 지금까지의 성과가 `docs/04_evaluation_validation/` 아래 여러 문서에 흩어져 있어, 발표/심사용으로 한 장에서 볼 수 있도록 정리했다. 상세 근거는 각 링크된 문서를 참고한다.
 
 시각 대시보드(이 문서의 내용을 한 페이지로): https://claude.ai/code/artifact/2bd24514-948a-408b-886a-f6eff4900466
+관리자용 운영 대시보드 프로토타입(실제 파이프라인 산출값 + 확인/오탐 처리 인터랙션): https://claude.ai/code/artifact/28c93b1f-bbf1-40fe-ade8-8092d52c3bf0
 
 ## 1. 한 줄 요약
 
@@ -52,9 +53,32 @@ AI Hub 데이터는 전부 "정상으로 가정"한 데이터라 진짜 이상 �
 | `feed_drop AND co2_high` | 복합 | -- | precision 46.2% (단일 규칙 대비 상승) |
 | LSTM baseline (모델 기반) | -- | -- | 방향은 맞으나 신호 약함 (표본 부족) |
 
-**결론: 규칙 방향성 자체는 유효하지만, 절대값 threshold 하나를 여러 농장/데이터셋에 공유하는 설계가 문제다.** 다음 단계는 농장별 상대 threshold 구조 -- [FARM_RELATIVE_THRESHOLD_DESIGN.md](../03_modeling_and_rules/FARM_RELATIVE_THRESHOLD_DESIGN.md)에 설계만 해두었고, `config/domain_rules.json`(메인 파이프라인이 실제 쓰는 파일)은 아직 수정하지 않았다.
+### 4-1. ClearFarm 점수화 scorecard
 
-상세: [CLEARFARM_RULE_VALIDATION_REPORT.md](../04_evaluation_validation/CLEARFARM_RULE_VALIDATION_REPORT.md)
+개별 규칙을 OR/AND로만 보지 않고, `feed_drop`, `co2_high`, `nh3_high`, `barn_temp_high`를 severity weight + co-occurrence bonus 방식으로 점수화했다. 이는 메인 파이프라인의 `rule_score` 철학과 같은 구조다.
+
+| 점수 기준 | 목적 | 성능 |
+| --- | --- | --- |
+| `rule_score >= 0.3` | 조기 선별 우선 | sensitivity **73.1%** / specificity 29.9% / precision 37.1% / F1 **49.2%** |
+| `rule_score >= 0.6` | 중간 균형 | sensitivity 52.5% / specificity 50.2% / precision 37.4% / F1 43.7% |
+| `rule_score >= 0.9` | 알림 수 절감 | sensitivity 26.1% / specificity 83.0% / precision 46.4% / F1 33.4% |
+| `environment_score >= 0.9` vs heat signs | 고온/환경성 이상 고정밀 후보 | sensitivity 42.5% / specificity **98.5%** / precision **53.1%** / F1 47.2% |
+
+### 4-2. 3단계 알림 정책
+
+ClearFarm scorecard를 운영 행동으로 바꿔 `observe -> caution -> cctv_focus` 정책을 구현했다.
+
+| 단계 | 조건 | ClearFarm 라벨 기준 결과 |
+| --- | --- | --- |
+| observe | `rule_score >= 0.3` | 212 pen-day, any signs 36.3% |
+| caution | `rule_score >= 0.6` | 316 pen-day, any signs 31.3% |
+| cctv_focus | `rule_score >= 0.9` 또는 `environment_score >= 0.9` | 211 pen-day, any signs **46.4%**, heat signs 9.5% |
+
+주의: `normal` 단계도 any signs 33.8%라서 이 정책은 “정상 판정기”가 아니라 CCTV/현장 확인 우선순위를 정하는 triage 정책이다.
+
+**결론: 규칙 방향성 자체는 유효하지만, 절대값 threshold 하나를 여러 농장/데이터셋에 공유하는 설계가 문제다.** ClearFarm 기준으로는 `rule_score >= 0.3`이 조기 선별용, `rule_score >= 0.9` 또는 `environment_score >= 0.9`가 고확신 알림용 후보다. 다음 단계는 농장별 상대 threshold 구조 -- [FARM_RELATIVE_THRESHOLD_DESIGN.md](../03_modeling_and_rules/FARM_RELATIVE_THRESHOLD_DESIGN.md)에 설계만 해두었고, `config/domain_rules.json`(메인 파이프라인이 실제 쓰는 파일)은 아직 수정하지 않았다.
+
+상세: [CLEARFARM_RULE_VALIDATION_REPORT.md](../04_evaluation_validation/CLEARFARM_RULE_VALIDATION_REPORT.md), [clearfarm_rule_scorecard_report.md](../../artifacts/clearfarm_rule_scorecard/clearfarm_config/clearfarm_rule_scorecard_report.md), [CLEARFARM_3LEVEL_ALERT_POLICY.md](../05_operations_feedback/CLEARFARM_3LEVEL_ALERT_POLICY.md)
 
 ## 5. 최초 기획 대비 완성도
 
@@ -62,16 +86,16 @@ AI Hub 데이터는 전부 "정상으로 가정"한 데이터라 진짜 이상 �
 | --- | --- | --- |
 | 돈방별 정상 패턴 학습 | 80% | |
 | Anomaly Score 생성 | 80% | |
-| 질병 의심도 계산 | 65% | AI Hub 기준. ClearFarm 검증으로 절대 threshold 한계 확인 |
-| 사료/음수 이상 반영 | 35% | ClearFarm으로 실제 농장 신호 처음 확보, 메인 파이프라인 미반영 |
-| 환경 보정 | 60% | ClearFarm으로 재캘리브레이션 필요성 확인, 미반영 |
-| 이상 돈방 선정 | 75% | |
+| 질병 의심도 계산 | 68% | AI Hub 기준. ClearFarm scorecard로 규칙 점수 threshold 후보 확보 |
+| 사료/음수 이상 반영 | 45% | ClearFarm 시간 단위 feed_drop 검증 및 scorecard 반영 완료, 음수 실데이터는 아직 부족 |
+| 환경 보정 | 68% | ClearFarm 후보 config와 scorecard 구현 완료, 메인 운영 config 미반영 |
+| 이상 돈방 선정 | 78% | ClearFarm 3단계 triage 정책 구현 완료 |
 | CCTV 집중 분석 | 35% | 팀원 YOLO 결과 연동 전 |
 | 이상 개체 특정 | 15% | 아직 통합 전 |
-| 관리자 알림/대시보드 | 40% | UI 연동 전 |
+| 관리자 알림/대시보드 | 55% | 인터랙티브 프로토타입 완성(확인/오탐 처리), 실데이터 연동/배포 전 |
 | 리뷰 기반 개선 | 60% | |
 
-전체 1차 목표("비육돈 돈방 이상탐지 조기 선별") 65-70% 수준. 상세 및 최신 업데이트: [PROJECT_DIRECTION_DETAILED_PLAN.md](PROJECT_DIRECTION_DETAILED_PLAN.md)
+전체 1차 목표("비육돈 돈방 이상탐지 조기 선별") 68-72% 수준. 상세 및 최신 업데이트: [PROJECT_DIRECTION_DETAILED_PLAN.md](PROJECT_DIRECTION_DETAILED_PLAN.md)
 
 ## 6. 알려진 한계 (정직하게)
 
@@ -95,7 +119,8 @@ AI Hub 데이터는 전부 "정상으로 가정"한 데이터라 진짜 이상 �
 
 ## 8. 다음 단계 우선순위
 
-1. 농장별 상대 threshold를 `domain_rules.json`/`domain_rules.py`에 실제로 반영 (설계는 완료, 구현 대기)
-2. 팀원 YOLO 결과와 CCTV 집중 분석 연동
-3. 관리자 알림/대시보드 UI
-4. 실제 농장 이벤트 로그 확보 (지금은 synthetic 이벤트로만 검증)
+1. ClearFarm 3단계 정책 산출물을 메인 action queue 형식으로 변환하는 어댑터 구현
+2. 농장별 상대 threshold를 `domain_rules.json`/`domain_rules.py`에 실제로 반영 (설계는 완료, 구현 대기)
+3. 팀원 YOLO 결과와 CCTV 집중 분석 연동
+4. 관리자 알림/대시보드 UI
+5. 실제 농장 이벤트 로그 확보 (지금은 synthetic 이벤트로만 검증)

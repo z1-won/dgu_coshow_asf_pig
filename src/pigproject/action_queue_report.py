@@ -34,6 +34,8 @@ def _action_for(category: str, row: pd.Series) -> str:
             return "급수기 막힘, 수압, 음수 라인, 누수/단수 여부 확인"
         return "사료/급수 설비와 사양관리 변경 사항 확인"
     if category == "environment":
+        if _reason_contains(row, "barn_temp_high"):
+            return "고온/열스트레스 가능성 확인, 냉방/환기/온습도 센서와 CCTV 상태 확인"
         if _reason_contains(row, "co2_high") and _reason_contains(row, "nh3_high"):
             return "환기량 증대, CO2/NH3 센서 재확인, 분뇨/환기 설비 점검"
         if _reason_contains(row, "co2_high"):

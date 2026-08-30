@@ -25,6 +25,8 @@ ASF Dryad and PRRSV validations.
 from __future__ import annotations
 
 import argparse
+import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -41,6 +43,37 @@ DEFAULT_ARTIFACT_DIR = "artifacts/clearfarm_rule_validation"
 CONFIGURED_FEED_DROP_THRESHOLD = -1.5
 CONFIGURED_CO2_THRESHOLD = 1000
 CONFIGURED_NH3_THRESHOLD = 10
+CONFIGURED_BARN_TEMP_THRESHOLD = 40
+
+
+@dataclass(frozen=True)
+class RuleThresholds:
+    feed_drop: float = CONFIGURED_FEED_DROP_THRESHOLD
+    co2_high: float = CONFIGURED_CO2_THRESHOLD
+    nh3_high: float = CONFIGURED_NH3_THRESHOLD
+    barn_temp_high: float = CONFIGURED_BARN_TEMP_THRESHOLD
+    source: str = "built-in defaults"
+
+
+def load_rule_thresholds(config_path: str | Path | None) -> RuleThresholds:
+    if config_path is None:
+        return RuleThresholds()
+    path = Path(config_path)
+    config = json.loads(path.read_text(encoding="utf-8"))
+    by_id = {str(rule.get("id")): rule for rule in config.get("rules", [])}
+
+    def threshold(rule_id: str, default: float) -> float:
+        rule = by_id.get(rule_id, {})
+        value = rule.get("threshold", default)
+        return float(value)
+
+    return RuleThresholds(
+        feed_drop=threshold("feed_drop", CONFIGURED_FEED_DROP_THRESHOLD),
+        co2_high=threshold("co2_high", CONFIGURED_CO2_THRESHOLD),
+        nh3_high=threshold("nh3_high", CONFIGURED_NH3_THRESHOLD),
+        barn_temp_high=threshold("barn_temp_high", CONFIGURED_BARN_TEMP_THRESHOLD),
+        source=str(path),
+    )
 
 RESPIRATORY_SIGN_COLUMNS = ["cough_sum", "sneeze_sum", "pump_sum"]
 GUT_SIGN_COLUMNS = ["diar_sum"]
@@ -222,16 +255,17 @@ def write_feed_drop_report(output_dir: Path, df: pd.DataFrame) -> Path:
     return report
 
 
-def write_environment_report(output_dir: Path, df: pd.DataFrame) -> Path:
+def write_environment_report(output_dir: Path, df: pd.DataFrame, thresholds: RuleThresholds | None = None) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
+    thresholds = thresholds or RuleThresholds()
 
     co2_percentiles = df["co2_max"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(0)
     ammonia_percentiles = df["ammonia_max"].quantile([0.10, 0.25, 0.50, 0.75, 0.90]).round(0)
-    co2_thresholds = sorted({CONFIGURED_CO2_THRESHOLD, *co2_percentiles.astype(int).tolist()})
-    ammonia_thresholds = sorted({CONFIGURED_NH3_THRESHOLD, *ammonia_percentiles.astype(int).tolist()})
+    co2_thresholds = sorted({thresholds.co2_high, *co2_percentiles.astype(int).tolist()})
+    ammonia_thresholds = sorted({thresholds.nh3_high, *ammonia_percentiles.astype(int).tolist()})
 
-    co2_configured = confusion_for_threshold(df, "co2_max", CONFIGURED_CO2_THRESHOLD, "respiratory_signs", "above")
-    nh3_configured = confusion_for_threshold(df, "ammonia_max", CONFIGURED_NH3_THRESHOLD, "respiratory_signs", "above")
+    co2_configured = confusion_for_threshold(df, "co2_max", thresholds.co2_high, "respiratory_signs", "above")
+    nh3_configured = confusion_for_threshold(df, "ammonia_max", thresholds.nh3_high, "respiratory_signs", "above")
 
     co2_sweep = threshold_sweep(df, "co2_max", co2_thresholds, "respiratory_signs", "above")
     ammonia_sweep = threshold_sweep(df, "ammonia_max", ammonia_thresholds, "respiratory_signs", "above")
@@ -241,8 +275,8 @@ def write_environment_report(output_dir: Path, df: pd.DataFrame) -> Path:
     co2_sweep.to_csv(output_dir / "clearfarm_co2_high_vs_respiratory_signs.csv", index=False)
     ammonia_sweep.to_csv(output_dir / "clearfarm_nh3_high_vs_respiratory_signs.csv", index=False)
 
-    co2_pct_below_threshold = float((df["co2_max"].dropna() < CONFIGURED_CO2_THRESHOLD).mean())
-    ammonia_pct_below_threshold = float((df["ammonia_max"].dropna() < CONFIGURED_NH3_THRESHOLD).mean())
+    co2_pct_below_threshold = float((df["co2_max"].dropna() < thresholds.co2_high).mean())
+    ammonia_pct_below_threshold = float((df["ammonia_max"].dropna() < thresholds.nh3_high).mean())
 
     lines = [
         "# ClearFarm co2_high / nh3_high 규칙 검증",
@@ -251,11 +285,12 @@ def write_environment_report(output_dir: Path, df: pd.DataFrame) -> Path:
         "",
         "## 핵심 발견: 설정된 threshold가 ClearFarm에서는 사실상 상시 발동한다",
         "",
-        f"- `co2_high`는 `CO2_mean(창 내 max) >= {CONFIGURED_CO2_THRESHOLD}`, `nh3_high`는 "
-        f"`NH3_mean(창 내 max) >= {CONFIGURED_NH3_THRESHOLD}`로 설정되어 있다.",
-        f"- ClearFarm의 일일 CO2 최댓값(`co2_max`)이 {CONFIGURED_CO2_THRESHOLD} 미만인 날은 전체의 "
+        f"- 적용 config: `{thresholds.source}`"
+        f"- `co2_high`는 `CO2_mean(창 내 max) >= {thresholds.co2_high:g}`, `nh3_high`는 "
+        f"`NH3_mean(창 내 max) >= {thresholds.nh3_high:g}`로 설정되어 있다.",
+        f"- ClearFarm의 일일 CO2 최댓값(`co2_max`)이 {thresholds.co2_high:g} 미만인 날은 전체의 "
         f"`{co2_pct_below_threshold:.1%}`뿐이다 -- 나머지 대부분은 규칙이 항상 발동한다는 뜻이다.",
-        f"- ClearFarm의 일일 암모니아 최댓값(`ammonia_max`)이 {CONFIGURED_NH3_THRESHOLD} 미만인 날은 "
+        f"- ClearFarm의 일일 암모니아 최댓값(`ammonia_max`)이 {thresholds.nh3_high:g} 미만인 날은 "
         f"`{ammonia_pct_below_threshold:.1%}`뿐이다.",
         f"- 설정된 threshold 그대로 적용한 confusion matrix: co2_high "
         f"sensitivity={co2_configured['sensitivity']:.1%} / specificity={co2_configured['specificity']:.1%}, "
@@ -327,20 +362,21 @@ def prepare_subdaily_validation_frame(
     return base.merge(daily_zscore, on=["experiment", "pen_id", "date"], how="left")
 
 
-def write_subdaily_feed_drop_report(output_dir: Path, df: pd.DataFrame) -> Path:
+def write_subdaily_feed_drop_report(output_dir: Path, df: pd.DataFrame, thresholds: RuleThresholds | None = None) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
+    rule_thresholds = thresholds or RuleThresholds()
 
-    thresholds = [-0.5, -1.0, -1.5, -2.0]
-    sweep_any = threshold_sweep(df, "feed_intake_daily_min_zscore_3d", thresholds, "any_signs")
-    sweep_gut = threshold_sweep(df, "feed_intake_daily_min_zscore_3d", thresholds, "gut_signs")
+    sweep_thresholds = sorted({-0.5, -1.0, -1.5, -2.0, rule_thresholds.feed_drop})
+    sweep_any = threshold_sweep(df, "feed_intake_daily_min_zscore_3d", sweep_thresholds, "any_signs")
+    sweep_gut = threshold_sweep(df, "feed_intake_daily_min_zscore_3d", sweep_thresholds, "gut_signs")
     sweep_any.to_csv(output_dir / "clearfarm_feed_drop_subdaily_vs_any_signs.csv", index=False)
     sweep_gut.to_csv(output_dir / "clearfarm_feed_drop_subdaily_vs_gut_signs.csv", index=False)
 
     configured = confusion_for_threshold(
-        df, "feed_intake_daily_min_zscore_3d", CONFIGURED_FEED_DROP_THRESHOLD, "any_signs"
+        df, "feed_intake_daily_min_zscore_3d", rule_thresholds.feed_drop, "any_signs"
     )
     n_reachable = df["feed_intake_daily_min_zscore_3d"].notna().sum()
-    n_fires = int((df["feed_intake_daily_min_zscore_3d"] <= CONFIGURED_FEED_DROP_THRESHOLD).sum())
+    n_fires = int((df["feed_intake_daily_min_zscore_3d"] <= rule_thresholds.feed_drop).sum())
 
     lines = [
         "# ClearFarm feed_drop 규칙 재검증 (시간 단위 해상도)",
@@ -353,9 +389,10 @@ def write_subdaily_feed_drop_report(output_dir: Path, df: pd.DataFrame) -> Path:
         "이론상 최대 1.1547이라 -1.5 threshold가 절대 발동하지 않는다는 걸 확인했다.",
         "- ClearFarm 원본 급이 로그는 방문 단위 타임스탬프(`hour` 컬럼)가 있어서, 돈방x시간 단위로 재집계하면 "
         "3일 rolling window 안에 최대 72개 점이 들어간다.",
-        f"- 이 해상도에서 -1.5 threshold는 health-observed pen-day 중 `{n_fires}`/`{n_reachable}`일에서 실제로 발동한다 "
+        f"- 적용 config: `{rule_thresholds.source}`"
+        f"- 이 해상도에서 feed_drop threshold({rule_thresholds.feed_drop:g})는 health-observed pen-day 중 `{n_fires}`/`{n_reachable}`일에서 실제로 발동한다 "
         "(1순위 검증에서는 0/779였다).",
-        f"- 설정된 threshold(-1.5) 그대로의 confusion matrix: "
+        f"- 적용 threshold({rule_thresholds.feed_drop:g})의 confusion matrix: "
         f"sensitivity={configured['sensitivity']:.1%} / specificity={configured['specificity']:.1%} / "
         f"precision={configured['precision']:.1%}.",
         "",
@@ -382,20 +419,18 @@ def write_subdaily_feed_drop_report(output_dir: Path, df: pd.DataFrame) -> Path:
     return report
 
 
-CONFIGURED_BARN_TEMP_THRESHOLD = 40
-
-
-def write_thermal_report(output_dir: Path, df: pd.DataFrame) -> Path:
+def write_thermal_report(output_dir: Path, df: pd.DataFrame, thresholds: RuleThresholds | None = None) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
+    thresholds = thresholds or RuleThresholds()
 
     observed_max = float(df["temperature_max"].max())
     configured = confusion_for_threshold(
-        df, "temperature_max", CONFIGURED_BARN_TEMP_THRESHOLD, "heat_signs", "above"
+        df, "temperature_max", thresholds.barn_temp_high, "heat_signs", "above"
     )
 
     percentiles = df["temperature_max"].quantile([0.50, 0.75, 0.90, 0.95, 0.99]).round(1)
-    thresholds = sorted(set(percentiles.astype(float).tolist()))
-    sweep = threshold_sweep(df, "temperature_max", thresholds, "heat_signs", "above")
+    sweep_thresholds = sorted({thresholds.barn_temp_high, *percentiles.astype(float).tolist()})
+    sweep = threshold_sweep(df, "temperature_max", sweep_thresholds, "heat_signs", "above")
     sweep.to_csv(output_dir / "clearfarm_barn_temp_high_vs_heat_signs.csv", index=False)
 
     lines = [
@@ -403,13 +438,14 @@ def write_thermal_report(output_dir: Path, df: pd.DataFrame) -> Path:
         "",
         f"데이터 출처: ClearFarm growing-finishing pig sensor dataset (비육돈), health-observed pen-day `{len(df)}`건",
         "",
-        "## 핵심 발견: 설정된 threshold(40도)는 ClearFarm에서 물리적으로 도달 불가능하다",
+        "## 핵심 발견: 운영 threshold와 후보 threshold의 차이가 크다",
         "",
-        f"- `barn_temp_high`는 `T_mean(창 내 max) >= {CONFIGURED_BARN_TEMP_THRESHOLD}`로 설정되어 있다.",
+        f"- 적용 config: `{thresholds.source}`"
+        f"- `barn_temp_high`는 `T_mean(창 내 max) >= {thresholds.barn_temp_high:g}`로 설정되어 있다.",
         f"- ClearFarm에서 관측된 일일 최고 온도(`temperature_max`)의 전체 기간 최댓값은 `{observed_max:.1f}도`다 -- "
-        f"{CONFIGURED_BARN_TEMP_THRESHOLD}도 근처에도 못 미친다.",
+        f"적용 threshold와 비교해야 한다.",
         f"- 그 결과 confusion matrix는 tp={int(configured['tp'])}, fn={int(configured['fn'])}: "
-        "**이 threshold 그대로면 ClearFarm에서 barn_temp_high는 단 한 번도 발동하지 않는다.**",
+        "**적용 threshold에 따라 ClearFarm에서 barn_temp_high 발동 여부가 크게 달라진다.**",
         "- 열 스트레스 관찰 신호(`pant_sum > 0`, panting)는 실제로 전체의 3.9%일에 나타난다 -- "
         "즉 열 스트레스 자체는 이 농장에도 존재하지만, 40도라는 절대 threshold가 이 농장의 온도 스케일과 "
         "전혀 안 맞아서 그 신호를 하나도 못 잡는다.",
@@ -453,7 +489,7 @@ def confusion_for_composite(df: pd.DataFrame, rule_hit: pd.Series, sign_col: str
     return {"tp": tp, "fp": fp, "fn": fn, "tn": tn, "sensitivity": sensitivity, "specificity": specificity, "precision": precision, "f1": f1}
 
 
-def write_composite_report(output_dir: Path, df: pd.DataFrame) -> Path:
+def write_composite_report(output_dir: Path, df: pd.DataFrame, thresholds: RuleThresholds | None = None) -> Path:
     """Co-occurrence check: does AND-combining two recalibrated rules raise
     precision over either rule alone, the same tradeoff `domain_rules.py`'s
     `CO_OCCURRENCE_BONUS_PER_EXTRA_RULE` already assumes for the main
@@ -462,15 +498,16 @@ def write_composite_report(output_dir: Path, df: pd.DataFrame) -> Path:
     normal" data.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+    thresholds = thresholds or RuleThresholds()
 
-    feed_fires = df["feed_intake_daily_min_zscore_3d"] <= CONFIGURED_FEED_DROP_THRESHOLD
-    co2_fires = df["co2_max"] >= RECALIBRATED_CO2_THRESHOLD
-    temp_fires = df["temperature_max"] >= RECALIBRATED_BARN_TEMP_THRESHOLD
+    feed_fires = df["feed_intake_daily_min_zscore_3d"] <= thresholds.feed_drop
+    co2_fires = df["co2_max"] >= thresholds.co2_high
+    temp_fires = df["temperature_max"] >= thresholds.barn_temp_high
 
     combos = {
         "feed_drop": feed_fires,
-        "co2_high (recalibrated)": co2_fires,
-        "barn_temp_high (recalibrated)": temp_fires,
+        "co2_high": co2_fires,
+        "barn_temp_high": temp_fires,
         "feed_drop AND co2_high": feed_fires.fillna(False) & co2_fires.fillna(False),
         "feed_drop AND barn_temp_high": feed_fires.fillna(False) & temp_fires.fillna(False),
         "co2_high AND barn_temp_high": co2_fires.fillna(False) & temp_fires.fillna(False),
@@ -494,8 +531,8 @@ def write_composite_report(output_dir: Path, df: pd.DataFrame) -> Path:
         "",
         f"데이터 출처: ClearFarm growing-finishing pig sensor dataset (비육돈), health-observed pen-day `{len(df)}`건",
         "",
-        "재캘리브레이션된 3개 규칙(`feed_drop`은 원래 -1.5 그대로 -- 시간 단위 해상도에서는 이미 작동함, "
-        f"`co2_high`={RECALIBRATED_CO2_THRESHOLD}ppm, `barn_temp_high`={RECALIBRATED_BARN_TEMP_THRESHOLD}도)을 "
+        f"적용 config: `{thresholds.source}`. 3개 규칙(`feed_drop`={thresholds.feed_drop:g} -- 시간 단위 해상도에서는 작동함, "
+        f"`co2_high`={thresholds.co2_high:g}ppm, `barn_temp_high`={thresholds.barn_temp_high:g}도)을 "
         "단독/조합으로 `any_signs`와 비교했다.",
         "",
         dataframe_to_markdown(summary),
@@ -526,18 +563,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pen-day-path", default=DEFAULT_PEN_DAY_PATH)
     parser.add_argument("--raw-dir", default=DEFAULT_CLEARFARM_RAW_DIR)
     parser.add_argument("--artifact-dir", default=DEFAULT_ARTIFACT_DIR)
+    parser.add_argument("--rules-config", default="config/domain_rules.json")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+    thresholds = load_rule_thresholds(args.rules_config)
     df = prepare_validation_frame(args.pen_day_path)
     feed_report = write_feed_drop_report(Path(args.artifact_dir), df)
-    env_report = write_environment_report(Path(args.artifact_dir), df)
-    thermal_report = write_thermal_report(Path(args.artifact_dir), df)
+    env_report = write_environment_report(Path(args.artifact_dir), df, thresholds)
+    thermal_report = write_thermal_report(Path(args.artifact_dir), df, thresholds)
     subdaily_df = prepare_subdaily_validation_frame(args.pen_day_path, args.raw_dir)
-    subdaily_report = write_subdaily_feed_drop_report(Path(args.artifact_dir), subdaily_df)
-    composite_report = write_composite_report(Path(args.artifact_dir), subdaily_df)
+    subdaily_report = write_subdaily_feed_drop_report(Path(args.artifact_dir), subdaily_df, thresholds)
+    composite_report = write_composite_report(Path(args.artifact_dir), subdaily_df, thresholds)
     print(f"Wrote {feed_report}")
     print(f"Wrote {env_report}")
     print(f"Wrote {thermal_report}")

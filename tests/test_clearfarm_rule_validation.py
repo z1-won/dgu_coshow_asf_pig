@@ -1,12 +1,14 @@
 import pandas as pd
 
 from pigproject.clearfarm_rule_validation import (
+    RuleThresholds,
     compute_feed_zscore_3d,
     confusion_for_composite,
     confusion_for_threshold,
     define_disease_signs,
     filter_health_observed,
     threshold_sweep,
+    write_composite_report,
 )
 
 
@@ -143,3 +145,21 @@ def test_confusion_for_composite_scores_a_precombined_boolean_series():
     assert result["fp"] == 1
     assert result["fn"] == 1
     assert result["tn"] == 1
+
+
+def test_write_composite_report_uses_passed_thresholds(tmp_path):
+    df = pd.DataFrame(
+        [
+            {"feed_intake_daily_min_zscore_3d": -2.0, "co2_max": 3000.0, "temperature_max": 32.0, "any_signs": True},
+            {"feed_intake_daily_min_zscore_3d": 0.0, "co2_max": 1000.0, "temperature_max": 20.0, "any_signs": False},
+        ]
+    )
+    thresholds = RuleThresholds(feed_drop=-1.5, co2_high=2500.0, barn_temp_high=31.0, source="test-config")
+
+    report = write_composite_report(tmp_path, df, thresholds)
+    summary = pd.read_csv(tmp_path / "clearfarm_composite_rules_vs_any_signs.csv")
+
+    assert report.exists()
+    assert summary.loc[summary["rule"] == "co2_high", "n_fires"].iloc[0] == 1
+    assert summary.loc[summary["rule"] == "barn_temp_high", "n_fires"].iloc[0] == 1
+    assert "test-config" in report.read_text(encoding="utf-8")

@@ -4,7 +4,7 @@
 
 목표는 ASF 확진이 아니라, 정상 패턴에서 벗어나는 돈방을 조기 선별하는 것입니다. 정상 데이터만으로 모델을 학습하고 재구성 오차 또는 One-Class 점수를 이용해 경보 후보를 찾습니다.
 
-발표/심사용 한 장 요약은 [docs/00_overview/PROJECT_SCORECARD.md](docs/00_overview/PROJECT_SCORECARD.md), 시각 대시보드는 [claude.ai/code/artifact/2bd24514-948a-408b-886a-f6eff4900466](https://claude.ai/code/artifact/2bd24514-948a-408b-886a-f6eff4900466)를 참고하세요.
+발표/심사용 한 장 요약은 [docs/00_overview/PROJECT_SCORECARD.md](docs/00_overview/PROJECT_SCORECARD.md), 시각 대시보드는 [claude.ai/code/artifact/2bd24514-948a-408b-886a-f6eff4900466](https://claude.ai/code/artifact/2bd24514-948a-408b-886a-f6eff4900466)를 참고하세요. 관리자가 실제로 쓸 법한 운영 대시보드 프로토타입(확인/오탐 처리 인터랙션 포함)은 [claude.ai/code/artifact/28c93b1f-bbf1-40fe-ade8-8092d52c3bf0](https://claude.ai/code/artifact/28c93b1f-bbf1-40fe-ade8-8092d52c3bf0)에 있습니다.
 
 ## 빠른 재현 (발표/데모용)
 

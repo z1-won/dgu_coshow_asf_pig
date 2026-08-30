@@ -1,6 +1,6 @@
 import pandas as pd
 
-from pigproject.clearfarm_processing import build_feeding_hour, normalize_pen_value, parse_clearfarm_date
+from pigproject.clearfarm_processing import build_feeding_hour, build_health_day, normalize_pen_value, parse_clearfarm_date, parse_exp1_ivog_station
 
 
 def test_parse_clearfarm_date_handles_iso_and_yyyymmdd():
@@ -12,6 +12,33 @@ def test_normalize_pen_value_adds_experiment_suffix():
     assert normalize_pen_value("A2", 3) == "A2.3"
     assert normalize_pen_value("A2.3", 3) == "A2.3"
     assert normalize_pen_value("10", 1) == "10"
+
+
+def test_parse_exp1_ivog_station_handles_f_labels():
+    assert parse_exp1_ivog_station("F2") == 2.0
+    assert parse_exp1_ivog_station("F10") == 10.0
+
+
+def test_build_health_day_maps_exp1_ivog_via_station_map(tmp_path):
+    exp_dir = tmp_path / "Exp1 (dec2020-feb2021)"
+    exp_dir.mkdir()
+    health = pd.DataFrame(
+        [
+            {"experiment": 1, "date": 20201208, "pen": 1, "ivog": "F10", "pig": 1001, "cough": 1, "diar": 0},
+            {"experiment": 1, "date": 20201208, "pen": 1, "ivog": "F10", "pig": 1002, "cough": 0, "diar": 1},
+        ]
+    )
+    with pd.ExcelWriter(exp_dir / "Exp1 - On-farm observations.xlsx") as writer:
+        health.to_excel(writer, sheet_name="Raw data", index=False)
+
+    station_map = pd.DataFrame([{"experiment": 1, "station": 10, "pen_id": "F3.1", "registered_pigs": 11}])
+    result = build_health_day(tmp_path, station_map)
+    row = result.iloc[0]
+
+    assert row["pen_id"] == "F3.1"
+    assert row["health_observation_rows"] == 2
+    assert row["cough_sum"] == 1
+    assert row["diar_sum"] == 1
 
 
 def test_build_feeding_hour_sums_valid_visits_per_pen_hour(tmp_path):

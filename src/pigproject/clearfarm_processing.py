@@ -85,6 +85,17 @@ def normalize_pen_value(value: object, experiment: int) -> str | None:
     return text
 
 
+def parse_exp1_ivog_station(value: object) -> float:
+    """Convert Exp1 health-sheet IVOG labels such as F2/F10 to station numbers."""
+    if pd.isna(value):
+        return np.nan
+    text = str(value).strip().upper()
+    match = re.fullmatch(r"F(\d+)", text)
+    if match:
+        return float(match.group(1))
+    return float(pd.to_numeric(text, errors="coerce"))
+
+
 def load_station_pen_map(input_dir: str | Path) -> pd.DataFrame:
     rows = []
     for path in sorted(Path(input_dir).glob("Exp*/*Pig registration all info combined.csv")):
@@ -238,8 +249,14 @@ def build_health_day(input_dir: str | Path, station_map: pd.DataFrame) -> pd.Dat
         df["date"] = parse_clearfarm_date(df["date"])
         temp = df.copy()
         if experiment == 1 and "ivog" in temp.columns:
-            # Exp1 health sheets store pen codes such as F2 in ivog, not numeric station IDs.
-            temp["pen_id"] = temp["ivog"].map(lambda x: normalize_pen_value(x, experiment))
+            # Exp1 stores IVOG labels such as F2/F10. Treat the number as the
+            # feeding-station id, then reuse the registration-derived station->pen map.
+            temp["station"] = temp["ivog"].map(parse_exp1_ivog_station)
+            temp = temp.merge(
+                station_map[["experiment", "station", "pen_id"]].drop_duplicates(),
+                on=["experiment", "station"],
+                how="left",
+            )
         else:
             temp["pen_id"] = temp["pen"].map(lambda x: normalize_pen_value(x, experiment))
         available = [c for c in HEALTH_COLUMNS if c in temp.columns]
