@@ -82,5 +82,8 @@ HOTPIG, ASF Dryad challenge, Behavior x Heat Tolerance는 메인 학습 데이�
 | HOTPIG | 정상과 고온스트레스 상태에 LSTM 이상탐지 파이프라인이 반응하는지 확인 | 고온스트레스 데이터이므로 ASF 증명으로 쓰지 않음 |
 | ASF Dryad challenge | 실제 ASF challenge에서 체온 규칙의 정밀도와 민감도를 확인 | 체온 단독으로 최종 판정하지 않음 |
 | Behavior x Heat Tolerance | 행동/근육온도/환경조건 feature profile의 보조 생리 검증 | 행동만으로 강한 탐지가 된다는 근거로 쓰지 않음 |
+| Wearable Stress Biosensor (MDPI Suresh et al.) | 심박수/호흡수/자세 실측 신호로 격리 스트레스 반응성 확인 | 격리 스트레스 데이터이므로 ASF 증명으로 쓰지 않음, 개체수 5마리로 적음 |
 
 3순위 Behavior x Heat Tolerance 결과는 `behavior_only` 탐지율이 낮고, `behavior_muscle`/`full`에서 강하게 분리됩니다. 따라서 이 데이터는 행동 이상탐지의 주 학습 데이터가 아니라 생리적 스트레스 feature가 어떻게 작동하는지 설명하는 보조 근거로 둡니다.
+
+4순위 Wearable Stress Biosensor 결과는 Pair(정상) validation에서 confirmed anomaly 0%를 유지하면서, 학습에 쓰지 않은 Isolation(격리) 구간에서 confirmed anomaly 39.7%를 보입니다. HOTPIG과 마찬가지로 파이프라인이 실제 물리적 스트레스에 반응한다는 근거이며, 상세 내용은 `../04_evaluation_validation/STRESS_BIOSENSOR_VALIDATION.md`를 참고하세요.

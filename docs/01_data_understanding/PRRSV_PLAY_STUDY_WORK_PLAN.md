@@ -4,6 +4,8 @@
 원본 위치: `/Users/bangjiwon/Downloads/doi_10_5061_dryad_76hdr7t55__v20240914`  
 프로젝트 위치: `/Users/bangjiwon/dev/pigproject/data/raw/external/prrsv_play_study`
 
+> **업데이트 (2026-08-30)**: 아래 2~5단계를 `src/pigproject/prrsv_play_study_analysis.py`(`pig-prrsv-play-analysis`) 하나로 완료했습니다. 결과는 `../04_evaluation_validation/PRRSV_EXTERNAL_VALIDATION_REPORT.md`, 요약은 `../04_evaluation_validation/EXTERNAL_VALIDATION_SUMMARY.md`의 6순위 항목을 참고하세요.
+
 ## 1. 현재 처리 상태
 
 다운로드된 PRRSV Dryad 데이터를 프로젝트 raw 폴더로 복사했다. 원본 Downloads 폴더는 그대로 보존했다.

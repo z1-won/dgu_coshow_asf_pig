@@ -2,6 +2,12 @@
 
 작성일: 2026-08-30
 
+> **업데이트 (2026-08-30)**: RFID-LoRaWAN 5.1단계(pig-hour/pig-day feature 생성)를 `src/pigproject/rfid_lorawan_movement_features.py`(`pig-build-rfid-movement-features`)로 완료했습니다. 결과와 데이터 이슈는 `artifacts/rfid_lorawan_movement/rfid_lorawan_movement_baseline_report.md`를 참고하세요.
+>
+> 처리 중 두 가지를 발견했습니다. (1) 원본 문서는 각 행이 이미 시간당 집계값이라고 설명하지만, 실제 파일은 같은 `(pig, day, hour)` 키가 최대 약 180번까지 서로 다른 distance 값으로 반복되는 원시 하위-시간 단위 기록입니다 -- 합산해서 시간당 총 이동거리를 재구성했습니다. (2) `activity_drop_pct_1d` 기준 최대 낙폭 상위 5건이 전부 20일차(마지막 날, `low_data_day=True`)에 몰려 있었습니다 -- 실제 활동량 감소가 아니라 출하로 관측이 중간에 끊긴 것이라, 완전성 플래그(`low_data_day`, `hours_observed`) 없이는 이 데이터가 거짓 activity_drop 신호로 잘못 쓰일 뻔했습니다.
+>
+> **업데이트 (2026-08-30, 6.1단계)**: 5126661 feeding reference table도 `src/pigproject/pig_feeding_behavior_reference.py`(`pig-build-feeding-reference`)로 완료했습니다. `DFIkg_day`(일일 급이량 kg/마리/일) 중앙값 2.31kg이 ClearFarm의 `daily_feed_intake_per_pig_kg` 중앙값 2.77kg과 같은 자릿수/범위로 나와 두 데이터셋이 서로 교차검증됩니다 -- 단위가 정확히 일치하는 이 한 컬럼만 비교했고, 급이 속도/방문 횟수 등 나머지는 두 데이터셋의 집계 단위가 달라 비교하지 않았습니다. 결과는 `artifacts/pig_feeding_behavior_5126661/feeding_reference_report.md`를 참고하세요.
+
 ## 1. 현재 확인된 데이터
 
 이번에 확인한 로컬 데이터는 세 종류다.

@@ -75,6 +75,12 @@ pig-rule-threshold-experiment = "pigproject.rule_threshold_experiment:main"
 pig-build-rule-candidate-config = "pigproject.rule_candidate_config:main"
 pig-compare-rule-configs = "pigproject.rule_config_compare:main"
 pig-build-clearfarm-pen-day = "pigproject.clearfarm_processing:main"
+pig-normalize-stress-biosensor = "pigproject.wearable_stress_biosensor_normalize:main"
+pig-build-stress-biosensor-dataset = "pigproject.wearable_stress_biosensor_dataset:main"
+pig-evaluate-stress-biosensor = "pigproject.wearable_stress_biosensor_evaluate:main"
+pig-prrsv-play-analysis = "pigproject.prrsv_play_study_analysis:main"
+pig-build-rfid-movement-features = "pigproject.rfid_lorawan_movement_features:main"
+pig-build-feeding-reference = "pigproject.pig_feeding_behavior_reference:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

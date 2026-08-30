@@ -15,6 +15,7 @@
 8. [ASFV Challenge Dryad 작업 계획](01_data_understanding/ASFV_CHALLENGE_DRYAD_WORK_PLAN.md)
 9. [ClearFarm/RFID/Feeding 데이터 활용 계획](01_data_understanding/CLEARFARM_RFID_FEEDING_DATA_USAGE_PLAN.md)
 10. [외부 검증 요약](04_evaluation_validation/EXTERNAL_VALIDATION_SUMMARY.md)
+10-1. [Wearable Stress Biosensor 검증](04_evaluation_validation/STRESS_BIOSENSOR_VALIDATION.md)
 11. [규칙 기반 판단 가이드](03_modeling_and_rules/DOMAIN_RULE_GUIDANCE.md)
 12. [위험 카테고리 경보](05_operations_feedback/RISK_CATEGORY_ALERTS.md)
 13. [다음 작업 계획](00_overview/NEXT_STEPS.md)
