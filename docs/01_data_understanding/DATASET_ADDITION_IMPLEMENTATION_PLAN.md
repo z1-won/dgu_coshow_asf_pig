@@ -24,7 +24,7 @@
 | PRRSV Disease Resilience Dataset | 다운로드 완료 | `data/raw/external/prrsv_play_study/` | sheet inventory 완료, timeline 생성 필요 |
 | ASFV Challenge Dataset | 다운로드 완료 | `data/raw/external/asfv_challenge_dryad/` | timeline/threshold sweep 완료 |
 | Pig Stress & Gait IoT Dataset | 일부/완료 확인됨 | `data/raw/external/wearable_stress_biosensor/` | raw 확인 완료, profiling 필요 |
-| Pig Multimodal Wearable Dataset | 다운로드 중 | `data/raw/external/pig_multimodal_behavior/` 예정 | 완료 후 검증 |
+| Pig Multimodal Wearable Dataset | 다운로드·압축해제·인벤토리 완료 | `data/raw/external/pig_multimodal_behavior/` | 8개체 7,892 window, pen 매핑 없음(taxonomy 참고용) — `artifacts/external/pig_multimodal_behavior/multimodal_behavior_inventory_report.md` |
 | Behavior x Heat Tolerance | 다운로드 필요/확인 필요 | `data/raw/external/behavior_heat_tolerance/` 예정 | 기존 sanity 결과는 있으나 raw 통합 필요 |
 | Behaviour Analysis During Heat Stress in Pigs | 다운로드 필요/확인 필요 | `data/raw/external/mendeley_heat_stress_behavior/` 예정 | 완료 후 검증 |
 
@@ -309,6 +309,8 @@
 
 - `multimodal_behavior_inventory_report.md`
 - `multimodal_behavior_label_summary.csv`
+
+**상태: 완료.** SHA256 검증 후 압축 해제(2.2GB, 12,586개 파일). 8개체·7,892 window(lying 3,974 / eating 2,677 / walking 783 / drinking 458), 79.6%가 오디오와 동기화됨. pen/farm 매핑이 없어 프로젝트 점수 체계에 직접 결합은 불가하고, 622 트랙 behavior taxonomy 비교 참고용으로 한정. 개체별 window 수 불균형(ID 2가 41.8% 차지)이 한계로 확인됨.
 
 ### 7순위: Heat Stress 행동 데이터 처리
 

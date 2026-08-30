@@ -246,8 +246,8 @@ export const INCIDENTS = [
   }
 ];
 
-export const CATEGORY_LABEL = { disease: "질병", management: "사양관리", environment: "환경" };
-export const CATEGORY_ICON_NAME = { disease: "thermometer", management: "bowl", environment: "wind" };
+export const CATEGORY_LABEL = { disease: "질병", management: "사양관리", environment: "환경", behavior: "행동" };
+export const CATEGORY_ICON_NAME = { disease: "thermometer", management: "bowl", environment: "wind", behavior: "user" };
 
 export const CHAMBER_BY_ID = Object.fromEntries(CHAMBERS.map((c) => [c.id, c]));
 

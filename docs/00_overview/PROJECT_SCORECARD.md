@@ -104,6 +104,7 @@ ClearFarm scorecard를 운영 행동으로 바꿔 `observe -> caution -> cctv_fo
 - 외부 검증 7개 중 실제 비육돈 + 실제 라벨 조합은 ClearFarm 하나뿐이고, 개체수/기간이 제한적이다.
 - `config/domain_rules.json`의 절대 threshold는 ClearFarm 검증에서 데이터셋마다 다르게 실패한다는 게 확인됐지만, 아직 프로덕션에 재캘리브레이션이 반영되지 않았다.
 - CCTV 기반 개체 특정, 관리자 대시보드는 아직 미완성이다.
+- Pig Multimodal Wearable Dataset(가속도계+오디오, 8개체)은 pen/농장 매핑이 없어 메인 파이프라인 점수 체계에 결합할 수 없다. 622 트랙 behavior taxonomy 비교와 행동 분류 베이스라인(macro F1 0.753, held-out 개체 기준) 참고자료로만 남겨둔다 — `artifacts/external/pig_multimodal_behavior/`.
 
 ## 7. 특허 후보 (CO-SHOW 채점: 특허출원 가능성 25점)
 

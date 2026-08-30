@@ -20,9 +20,14 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7",
+    "httpx>=0.27",
 ]
 yolo = [
     "ultralytics>=8.3",
+]
+api = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
 ]
 
 [project.scripts]
@@ -85,6 +90,8 @@ pig-validate-clearfarm-rules = "pigproject.clearfarm_rule_validation:main"
 pig-clearfarm-rule-scorecard = "pigproject.clearfarm_rule_scorecard:main"
 pig-clearfarm-alert-policy = "pigproject.clearfarm_alert_policy:main"
 pig-clearfarm-action-adapter = "pigproject.clearfarm_action_queue_adapter:main"
+pig-multimodal-behavior-baseline = "pigproject.multimodal_behavior_baseline:main"
+pig-serve-api = "pigproject.api:main"
 pig-build-clearfarm-baseline = "pigproject.clearfarm_baseline:main"
 pig-evaluate-clearfarm-baseline = "pigproject.clearfarm_baseline_evaluate:main"
 

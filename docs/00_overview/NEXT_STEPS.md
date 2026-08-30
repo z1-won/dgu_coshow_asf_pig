@@ -579,7 +579,8 @@ Incident review log도 추가했다:
 
 - `pigproject.incident_review`(`pig-build-incident-review-log`) 추가
 - 기본 incident review 산출물:
-  - `data/templates/incident_review_log_template.csv`
+  - `data/processed/incident_review_log.csv` (2026-08-30: 1회성 템플릿에서 누적 로그로 전환 -- 재실행해도 기존 리뷰 상태 유지, `--dashboard-export`로 대시보드 확인/오탐 결과 병합 가능)
+  - `data/processed/incident_review_summary_history.csv` (실행마다 스냅샷 추가, 리뷰율/precision 추이 확인용)
   - `artifacts/incident_review_summary.csv`
   - `artifacts/incident_review_report.md`
 - synthetic management incident review 산출물:

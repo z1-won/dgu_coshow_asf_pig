@@ -123,12 +123,13 @@
 final_chamber_anomaly_scores.csv
 -> category action queues
 -> incident_queue.csv
--> incident_review_log_template.csv
+-> incident_review_log.csv (누적, 대시보드 확인/오탐이 여기로 병합됨)
+-> incident_review_summary_history.csv (실행할 때마다 스냅샷 누적)
 -> rule_tuning_recommendations.csv
 -> candidate rule config experiment
 ```
 
-이 흐름을 통해 경보를 단순 점수로 끝내지 않고, 현장 확인과 rule 개선으로 되돌릴 수 있다.
+이 흐름을 통해 경보를 단순 점수로 끝내지 않고, 현장 확인과 rule 개선으로 되돌릴 수 있다. `incident_review_log.csv`는 1회성 템플릿이 아니라 재실행해도 기존 리뷰 상태를 유지하는 누적 로그이고, 대시보드의 "리뷰 내보내기" CSV를 `pig-build-incident-review-log --dashboard-export`로 병합해 운영자 피드백을 쌓는다.
 
 현재 생성 가능한 운영 산출물:
 
@@ -136,7 +137,8 @@ final_chamber_anomaly_scores.csv
 - `artifacts/action_queues/management_queue.csv`
 - `artifacts/action_queues/environment_queue.csv`
 - `artifacts/action_queues/incident_queue.csv`
-- `data/templates/incident_review_log_template.csv`
+- `data/processed/incident_review_log.csv` (누적 리뷰 로그)
+- `data/processed/incident_review_summary_history.csv` (리뷰율/정밀도 추이)
 - `artifacts/rule_tuning_recommendations_report.md`
 - `config/domain_rules_candidate_co2_1100.json`
 

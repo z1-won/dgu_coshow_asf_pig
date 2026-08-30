@@ -84,7 +84,7 @@ def build_sample_review_log(review_template: pd.DataFrame) -> pd.DataFrame:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a sample filled incident review and tuning report.")
-    parser.add_argument("--review-template", default="data/templates/incident_review_log_template.csv")
+    parser.add_argument("--review-template", default="data/processed/incident_review_log.csv")
     parser.add_argument("--rules-config", default="config/domain_rules.json")
     parser.add_argument("--output-review-log", default="data/templates/sample_incident_review_log.csv")
     parser.add_argument("--summary-output", default="artifacts/sample_incident_review_summary.csv")

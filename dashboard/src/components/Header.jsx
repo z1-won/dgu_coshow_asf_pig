@@ -1,12 +1,13 @@
 import { useMemo } from "react";
-import { INCIDENTS } from "../data.js";
+import { useDashboardData } from "../DashboardDataContext.jsx";
 
 const VIEW_TITLE = { home: "홈", plan: "돈방 배치도", history: "확인 내역" };
 
 export default function Header({ currentView, resolutions }) {
+  const { INCIDENTS, source } = useDashboardData();
   const criticalCount = useMemo(
     () => INCIDENTS.filter((i) => !resolutions[i.id]).length,
-    [resolutions]
+    [INCIDENTS, resolutions]
   );
   const today = useMemo(
     () =>
@@ -37,7 +38,7 @@ export default function Header({ currentView, resolutions }) {
       <div className="header-right">
         <span className="header-time">
           {today}
-          <span className="sync">갱신: 시연용 고정 데이터</span>
+          <span className="sync">{source === "api" ? "갱신: 실시간 API 연결됨" : "갱신: 시연용 고정 데이터"}</span>
         </span>
       </div>
     </div>

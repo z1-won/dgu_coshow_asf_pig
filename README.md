@@ -42,6 +42,10 @@ bash scripts/run_demo_pipeline.sh
 - `pig-build-feeding-reference`: 개체별 정상 급이량 reference table
 - `pig-validate-clearfarm-rules`: ClearFarm 비육돈 실제 농장 데이터로 feed_drop/co2_high/nh3_high/barn_temp_high 규칙 검증
 - `pig-build-clearfarm-baseline` / `pig-evaluate-clearfarm-baseline`: ClearFarm 전용 LSTM Autoencoder baseline (모델 기반, 비육돈)
+- `pig-clearfarm-rule-scorecard`: rule_score 임계값을 실제 health observation(`any_signs`)으로 스윕 검증
+- `pig-clearfarm-alert-policy`: pen-day 단위 3단계(정상/주의/위험) 경보 정책 산출
+- `pig-clearfarm-action-adapter`: 3단계 경보를 현장 대응 큐 입력 포맷으로 변환
+- `pig-multimodal-behavior-baseline`: Multimodal Wearable 4-class(lying/eating/walking/drinking) 가속도계 분류 베이스라인 (pen 매핑 없어 참고용, 622 taxonomy 비교는 [BEHAVIOR_TAXONOMY_COMPARISON.md](docs/01_data_understanding/BEHAVIOR_TAXONOMY_COMPARISON.md))
 
 ## 설치
 
@@ -288,21 +292,29 @@ pig-action-queues \
 
 결과는 `disease_queue.csv`, `management_queue.csv`, `environment_queue.csv`, `incident_queue.csv`로 분리됩니다.
 
-incident 확인 결과를 기록할 리뷰 로그 템플릿을 만들려면:
+incident 확인 결과를 누적 기록할 영구 리뷰 로그를 만들거나 갱신하려면:
 
 ```bash
 pig-build-incident-review-log \
   --incident-csv artifacts/action_queues/incident_queue.csv \
-  --output-csv data/templates/incident_review_log_template.csv \
+  --output-csv data/processed/incident_review_log.csv \
   --summary-output artifacts/incident_review_summary.csv \
+  --summary-history data/processed/incident_review_summary_history.csv \
   --report artifacts/incident_review_report.md
+```
+
+재실행해도 `--output-csv`에 이미 있는 리뷰 상태(확인/오탐/메모)는 초기화되지 않고, 새로 들어온 incident만 pending으로 추가됩니다(1회성 템플릿이 아니라 누적 로그). 대시보드("확인 내역" 화면의 "리뷰 내보내기" 버튼)에서 내보낸 CSV를 병합하려면:
+
+```bash
+pig-build-incident-review-log \
+  --dashboard-export ~/Downloads/incident_review_export_2026-08-30.csv
 ```
 
 리뷰 로그가 채워진 뒤 rule threshold 조정 후보를 보려면:
 
 ```bash
 pig-rule-tuning-recommendations \
-  --review-log data/templates/incident_review_log_template.csv \
+  --review-log data/processed/incident_review_log.csv \
   --rules-config config/domain_rules.json \
   --output-csv artifacts/rule_tuning_recommendations.csv \
   --report artifacts/rule_tuning_recommendations_report.md
@@ -312,7 +324,7 @@ pig-rule-tuning-recommendations \
 
 ```bash
 pig-build-sample-review-scenario \
-  --review-template data/templates/incident_review_log_template.csv \
+  --review-template data/processed/incident_review_log.csv \
   --rules-config config/domain_rules.json
 ```
 
@@ -379,6 +391,29 @@ pig-build-incident-review-log \
 - 사양관리: `ventilation_rate`, `feedstuff_volume`, `watersupply`
 
 전처리 로더는 AI Hub JSON 필드명이 `-` 또는 `_`로 조금 다를 수 있는 상황을 고려해 alias 기반으로 값을 찾습니다.
+
+## 대시보드 백엔드 API (FastAPI)
+
+`dashboard/`(React)는 이제 FastAPI 백엔드가 떠 있으면 실시간 데이터를 쓰고, 없으면 빌드 시점 정적 스냅샷(`data.generated.js`)으로 자동 대체합니다(`DashboardDataContext.jsx`). 1~4단계(스캐폴드, GET 엔드포인트, 리뷰 POST, 대시보드 fetch 전환) 전부 완료된 상태입니다.
+
+```bash
+# 1) 백엔드
+pip install -e ".[api]"
+pig-serve-api
+# http://127.0.0.1:8000/health                              -> {"status": "ok"}
+# http://127.0.0.1:8000/api/chambers                         -> {chambers, noDataRooms, buildings, totalRooms}
+# http://127.0.0.1:8000/api/incidents                        -> {incidents}
+# http://127.0.0.1:8000/api/categories                       -> {categoryLabel, categoryIconName}
+# POST http://127.0.0.1:8000/api/incidents/{id}/review       -> {"decision": "confirmed" | "dismissed", "reviewed_by": "..."}
+# http://127.0.0.1:8000/docs                                 -> 자동 생성된 API 문서
+
+# 2) 대시보드(다른 터미널)
+cd dashboard && npm run dev
+```
+
+`/api/chambers`, `/api/incidents`는 `dashboard/scripts/generate-dashboard-data.mjs`(대시보드 빌드 시점 정적 생성기)와 완전히 같은 규칙으로 `artifacts/final_chamber_summary.csv`/`artifacts/action_queues/incident_queue.csv`를 변환합니다(`pigproject.dashboard_data`, `tests/test_dashboard_data.py`에서 두 결과물이 실제로 일치함을 확인). 리뷰 POST는 `data/processed/incident_review_log.csv`에 직접 기록되고 `incident_review_summary_history.csv`에도 스냅샷이 쌓입니다.
+
+백엔드를 안 띄우고 `npm run dev`만 실행해도 대시보드는 정상 동작합니다(정적 스냅샷 모드로 자동 전환, 화면 상단 "빌드 시점 정적 스냅샷" 안내 문구로 표시) -- 발표/데모 중 백엔드 프로세스를 깜빡해도 화면이 죽지 않습니다. API 주소를 바꾸려면 `dashboard/.env`에 `VITE_API_BASE_URL=http://127.0.0.1:8000`을 설정하세요(기본값이 이미 이 주소).
 
 ## 산출물
 

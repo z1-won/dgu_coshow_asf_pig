@@ -1,7 +1,9 @@
-import { CATEGORY_LABEL, CATEGORY_ICON_NAME, CHAMBER_BY_ID, durationDays } from "../data.js";
+import { useDashboardData } from "../DashboardDataContext.jsx";
+import { durationDays } from "../utils.js";
 import { Icon, IconDangerFill, IconSuccessFill, IconInfoFill, IconUser } from "../icons.jsx";
 
 function CategoryBadge({ category }) {
+  const { CATEGORY_LABEL, CATEGORY_ICON_NAME } = useDashboardData();
   return (
     <span className={`cat-badge cat-${category}`}>
       <Icon name={CATEGORY_ICON_NAME[category]} className="icon-cat" />
@@ -11,6 +13,7 @@ function CategoryBadge({ category }) {
 }
 
 export default function IncidentCard({ incident, resolution, onConfirm, onDismiss, onUndo }) {
+  const { CHAMBER_BY_ID } = useDashboardData();
   const chamber = CHAMBER_BY_ID[incident.chamberId] || { buildingLabel: "알 수 없음", room: incident.chamberId };
   const days = durationDays(incident.start, incident.end);
   const reasonParts = incident.reasonParts || [];
@@ -65,7 +68,7 @@ export default function IncidentCard({ incident, resolution, onConfirm, onDismis
           <div className="v">{days}일 지속</div>
         </div>
         <div className="incident-field">
-          <div className="k">점수</div>
+          <div className="k">이상 점수</div>
           <div className="v mono">{incident.score.toFixed(3)}</div>
         </div>
         <div className="incident-field">

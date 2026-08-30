@@ -209,7 +209,7 @@ def write_outputs(recommendations: pd.DataFrame, output_csv: str | Path, report_
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Recommend rule tuning from incident review feedback.")
-    parser.add_argument("--review-log", default="data/templates/incident_review_log_template.csv")
+    parser.add_argument("--review-log", default="data/processed/incident_review_log.csv")
     parser.add_argument("--rules-config", default="config/domain_rules.json")
     parser.add_argument("--output-csv", default="artifacts/rule_tuning_recommendations.csv")
     parser.add_argument("--report", default="artifacts/rule_tuning_recommendations_report.md")
