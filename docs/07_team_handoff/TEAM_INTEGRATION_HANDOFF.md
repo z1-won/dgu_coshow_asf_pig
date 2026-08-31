@@ -80,6 +80,21 @@ source_video,pen_id,frame,track_id,x,y,w,h,conf,fps,frame_width,frame_height,tim
 
 `/Users/bangjiwon/dev/pigproject/data/templates/cv_tracking_results_template.csv`
 
+## 보안/공유 기준
+
+GitHub에는 코드, 설정 예시, 문서, 작은 템플릿만 올린다. 원본 영상, 원본 센서 데이터, 모델 가중치, 실제 API 키는 올리지 않는다.
+
+| 구분 | GitHub 업로드 | 이유 |
+|---|---|---|
+| 코드/테스트/문서 | 가능 | 협업과 재현에 필요 |
+| 템플릿 CSV | 가능 | 실제 농장 정보가 없는 형식 예시 |
+| 원본 CCTV 영상 | 금지 | 농장/촬영 시점/시설 정보가 노출될 수 있음 |
+| YOLO 모델 가중치(`.pt`, `.pth`, `.onnx`) | 금지 | 용량이 크고 모델 자산이므로 별도 공유 필요 |
+| 원본 센서 CSV/ZIP | 금지 | 농장 운영 데이터와 날짜 정보가 포함될 수 있음 |
+| `.env`, API key, 토큰 | 금지 | 외부 서비스 접근 권한 노출 위험 |
+
+팀원이 YOLO 결과를 공유할 때는 가능하면 원본 영상 대신 추론 결과 CSV만 전달한다. 발표/대시보드용으로 외부에 보여줄 때는 `pen_id`, `source_video`, 실제 날짜가 특정 농장이나 촬영 파일명으로 연결되지 않도록 익명화한다.
+
 ## 우리가 CV 결과로 만들 feature
 
 | 출력 feature | 의미 | 활용 |
