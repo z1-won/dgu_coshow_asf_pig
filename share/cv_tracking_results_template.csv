@@ -1,0 +1,5 @@
+source_video,pen_id,frame,track_id,x,y,w,h,conf,fps,frame_width,frame_height,timestamp
+pigbench_sample.mp4,pen_demo,0,1,964.05,197.08,930.67,1260.56,0.9407,30,3072,2304,
+pigbench_sample.mp4,pen_demo,0,2,1097.98,1379.6,1108.44,1102.18,0.9331,30,3072,2304,
+pigbench_sample.mp4,pen_demo,1,1,990.62,211.08,913.93,1238.99,0.9318,30,3072,2304,
+pigbench_sample.mp4,pen_demo,1,2,1005.87,1178.61,1190.33,1185.24,0.9440,30,3072,2304,
