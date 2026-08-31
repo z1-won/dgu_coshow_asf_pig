@@ -1,8 +1,9 @@
-import { IconBrand, IconHome, IconLayout, IconHistory } from "../icons.jsx";
+import { IconBrand, IconHome, IconLayout, IconHistory, IconChecklist } from "../icons.jsx";
 
 const NAV_ITEMS = [
   { view: "home", label: "홈", Icon: IconHome },
   { view: "plan", label: "돈방 배치도", Icon: IconLayout },
+  { view: "performance", label: "성능", Icon: IconChecklist },
   { view: "history", label: "확인 내역", Icon: IconHistory },
 ];
 

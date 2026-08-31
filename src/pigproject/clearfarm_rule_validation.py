@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import dataclass
+from typing import Optional
 from pathlib import Path
 
 import numpy as np
@@ -52,6 +53,7 @@ class RuleThresholds:
     co2_high: float = CONFIGURED_CO2_THRESHOLD
     nh3_high: float = CONFIGURED_NH3_THRESHOLD
     barn_temp_high: float = CONFIGURED_BARN_TEMP_THRESHOLD
+    humidity_high: Optional[float] = None
     source: str = "built-in defaults"
 
 
@@ -67,11 +69,14 @@ def load_rule_thresholds(config_path: str | Path | None) -> RuleThresholds:
         value = rule.get("threshold", default)
         return float(value)
 
+    humidity_rule = by_id.get("humidity_high")
+    humidity_high = float(humidity_rule["threshold"]) if humidity_rule and "threshold" in humidity_rule else None
     return RuleThresholds(
         feed_drop=threshold("feed_drop", CONFIGURED_FEED_DROP_THRESHOLD),
         co2_high=threshold("co2_high", CONFIGURED_CO2_THRESHOLD),
         nh3_high=threshold("nh3_high", CONFIGURED_NH3_THRESHOLD),
         barn_temp_high=threshold("barn_temp_high", CONFIGURED_BARN_TEMP_THRESHOLD),
+        humidity_high=humidity_high,
         source=str(path),
     )
 

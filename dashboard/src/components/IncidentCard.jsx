@@ -17,17 +17,18 @@ export default function IncidentCard({ incident, resolution, onConfirm, onDismis
   const chamber = CHAMBER_BY_ID[incident.chamberId] || { buildingLabel: "알 수 없음", room: incident.chamberId };
   const days = durationDays(incident.start, incident.end);
   const reasonParts = incident.reasonParts || [];
+  const stage = incident.operationalStage || { key: "caution", label: "확인 필요" };
 
   return (
-    <div className={`incident-card ${resolution ? "resolved" : "sev-critical"}`}>
+    <div className={`incident-card ${resolution ? "resolved" : stage.key === "observe" ? "sev-watch" : "sev-critical"}`}>
       <div className="incident-top">
         <div className="incident-id-row">
           {resolution ? (
             <span className="badge sev-resolved">{resolution.decision === "confirmed" ? "확인됨" : "오탐"}</span>
           ) : (
-            <span className="badge sev-critical">
+            <span className={`badge ${stage.key === "observe" ? "sev-watch" : "sev-critical"}`}>
               <IconDangerFill className="icon-sev" />
-              긴급
+              {stage.priorityLabel || stage.label}
             </span>
           )}
           <span className="chamber-name">

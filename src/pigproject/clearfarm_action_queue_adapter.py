@@ -15,6 +15,7 @@ from pigproject.activity_model_dataset import dataframe_to_markdown
 DEFAULT_POLICY_PATH = "artifacts/clearfarm_alert_policy/clearfarm_config/clearfarm_3level_alert_policy.csv"
 DEFAULT_OUTPUT_CSV = "data/processed/external/clearfarm/clearfarm_action_queue_input.csv"
 DEFAULT_ACTION_QUEUE_DIR = "artifacts/clearfarm_action_queue/clearfarm_config"
+YOLO_FOCUS_FILENAME = "yolo_cctv_focus_input.csv"
 
 
 def categories_from_reasons(reasons: object) -> str:
@@ -61,6 +62,9 @@ def reason_from_row(row: pd.Series) -> str:
 
 def adapt_policy_to_action_input(policy: pd.DataFrame) -> pd.DataFrame:
     frame = policy.copy()
+    for col in ["environment_temp_policy", "environment_temp_label", "environment_temp_action"]:
+        if col not in frame.columns:
+            frame[col] = ""
     frame["date"] = pd.to_datetime(frame["date"], errors="coerce")
     frame["alert_category"] = frame["rule_reasons"].apply(categories_from_reasons)
     frame["tier"] = frame["policy_level"].apply(tier_from_policy)
@@ -90,6 +94,9 @@ def adapt_policy_to_action_input(policy: pd.DataFrame) -> pd.DataFrame:
         "track_score",
         "management_score",
         "environment_score",
+        "environment_temp_policy",
+        "environment_temp_label",
+        "environment_temp_action",
         "alert_category",
         "model_anomaly",
         "rule_anomaly",
@@ -105,6 +112,32 @@ def adapt_policy_to_action_input(policy: pd.DataFrame) -> pd.DataFrame:
         ["cctv_requested", "policy_level", "track_score", "environment_score", "management_score"],
         ascending=[False, True, False, False, False],
     ).reset_index(drop=True)
+
+
+def build_yolo_focus_input(action_input: pd.DataFrame) -> pd.DataFrame:
+    cctv = action_input[action_input["cctv_requested"].astype(bool)].copy()
+    columns = [
+        "source_dataset",
+        "chamber_id",
+        "start_datetime",
+        "end_datetime",
+        "policy_level",
+        "track_score",
+        "management_score",
+        "environment_score",
+        "alert_category",
+        "reason",
+        "recommended_action",
+    ]
+    return cctv[columns].reset_index(drop=True)
+
+
+def _display_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    display = frame.copy()
+    for col in ["reason", "recommended_action"]:
+        if col in display.columns:
+            display[col] = display[col].astype(str).str.replace("|", ";", regex=False)
+    return display
 
 
 def write_adapter_report(action_input: pd.DataFrame, output_path: str | Path) -> Path:
@@ -129,7 +162,7 @@ def write_adapter_report(action_input: pd.DataFrame, output_path: str | Path) ->
         "## CCTV 요청 상위 20건",
         "",
         dataframe_to_markdown(
-            cctv[
+            _display_frame(cctv)[
                 [
                     "policy_level",
                     "chamber_id",
@@ -137,6 +170,7 @@ def write_adapter_report(action_input: pd.DataFrame, output_path: str | Path) ->
                     "track_score",
                     "management_score",
                     "environment_score",
+                    "environment_temp_label",
                     "alert_category",
                     "reason",
                     "recommended_action",
@@ -172,6 +206,9 @@ def run_adapter(
     incidents = build_incident_queue(queue)
     queue_paths = write_action_queues(queue, action_queue_dir)
     action_dir = Path(action_queue_dir)
+    yolo_focus = build_yolo_focus_input(action_input)
+    yolo_focus_path = action_dir / YOLO_FOCUS_FILENAME
+    yolo_focus.to_csv(yolo_focus_path, index=False)
     incident_path = write_incident_queue(incidents, action_dir / "incident_queue.csv")
     report_path = write_report(queue, action_dir / "action_queue_report.md", incident_queue=incidents)
     adapter_report = write_adapter_report(action_input, action_dir / "adapter_report.md")
@@ -181,6 +218,7 @@ def run_adapter(
         "management_queue": queue_paths["management"],
         "environment_queue": queue_paths["environment"],
         "incident_queue": incident_path,
+        "yolo_focus_input": yolo_focus_path,
         "action_report": report_path,
         "adapter_report": adapter_report,
     }

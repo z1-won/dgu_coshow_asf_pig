@@ -22,6 +22,9 @@ def _alerts() -> pd.DataFrame:
             "environment_score": [0.3, 0.0, 0.9],
             "tier": ["medium", "normal", "normal"],
             "alert_category": ["disease,environment", "management", "environment"],
+            "environment_temp_policy": ["balanced", "normal", "high_confidence"],
+            "environment_temp_label": ["균형", "정상 범위", "고확신"],
+            "environment_temp_action": ["환경 이상 기본 기준 후보", "온도 기준 이상 없음", "CCTV/현장 확인 우선순위"],
             "reason": [
                 "rule: disease: rectal_temp_high | environment: co2_high",
                 "rule: management: feed_drop",
@@ -39,6 +42,7 @@ def test_build_action_queue_expands_categories_and_actions():
     assert "수의사" in queue[queue["queue"] == "disease"]["recommended_action"].iloc[0]
     assert "급이기" in queue[queue["queue"] == "management"]["recommended_action"].iloc[0]
     assert "환기량" in queue[queue["reason"].str.contains("nh3_high")]["recommended_action"].iloc[0]
+    assert set(["environment_temp_policy", "environment_temp_label", "environment_temp_action"]).issubset(queue.columns)
 
 
 def test_build_incident_queue_groups_adjacent_windows():
@@ -70,6 +74,7 @@ def test_build_incident_queue_groups_adjacent_windows():
         (incidents["queue"] == "environment") & (incidents["chamber_id"] == "bioenergy:71408:1")
     ].sort_values("incident_start_datetime")
     assert environment_incidents["window_count"].tolist() == [2, 1]
+    assert environment_incidents.iloc[0]["environment_temp_label"] == "고확신"
     assert incidents["incident_id"].str.contains("-").all()
 
 

@@ -168,6 +168,7 @@ def build_window_raw_table(
             for col in feature_columns:
                 row[f"{col}__wmean"] = window[col].mean()
                 row[f"{col}__wmax"] = window[col].max()
+                row[f"{col}__wmin"] = window[col].min()
             rows.append(row)
     return pd.DataFrame(rows), quality_summary, correction
 
@@ -196,6 +197,8 @@ def evaluate_rules(window_table: pd.DataFrame, rules: list[dict]) -> pd.DataFram
 
     def evaluate_single_condition(rule: dict) -> np.ndarray:
         agg = rule.get("agg", "mean")
+        if agg not in {"mean", "max", "min"}:
+            raise ValueError(f"Unsupported aggregation '{agg}' in rule '{rule['id']}'.")
         column = f"{rule['feature']}__w{agg}"
         if column not in window_table.columns:
             raise KeyError(

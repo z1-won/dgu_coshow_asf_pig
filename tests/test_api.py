@@ -18,11 +18,27 @@ def test_get_chambers_returns_real_pipeline_output():
 
     assert response.status_code == 200
     body = response.json()
-    assert set(body.keys()) == {"chambers", "noDataRooms", "buildings", "totalRooms"}
+    assert set(body.keys()) == {"chambers", "noDataRooms", "buildings", "farmScope", "totalRooms"}
     assert body["totalRooms"] == len(body["chambers"]) + len(body["noDataRooms"])
+    assert body["farmScope"]["mode"] == "single_farm"
     assert body["buildings"]  # non-empty on the real dataset
     chamber = body["chambers"][0]
-    assert set(chamber.keys()) == {"id", "buildingLabel", "code", "room", "track", "windows", "mean", "max", "modelTier", "lowConf"}
+    assert {
+        "id",
+        "buildingLabel",
+        "code",
+        "room",
+        "track",
+        "windows",
+        "mean",
+        "max",
+        "modelTier",
+        "lowConf",
+        "evidence",
+        "operationalStage",
+        "barnComparison",
+    }.issubset(chamber.keys())
+    assert chamber["evidence"]["sourceCsv"] == "artifacts/final_chamber_summary.csv"
 
 
 def test_get_incidents_returns_real_pipeline_output():
@@ -33,7 +49,20 @@ def test_get_incidents_returns_real_pipeline_output():
     assert "incidents" in body
     if body["incidents"]:
         incident = body["incidents"][0]
-        assert set(incident.keys()) == {"id", "chamberId", "category", "start", "end", "windows", "score", "reasonParts", "action"}
+        assert {
+            "id",
+            "chamberId",
+            "category",
+            "start",
+            "end",
+            "windows",
+            "score",
+            "reasonParts",
+            "action",
+            "operationalStage",
+            "evidence",
+        }.issubset(incident.keys())
+        assert incident["evidence"]["sourceCsv"] == "artifacts/action_queues/incident_queue.csv"
 
 
 def test_get_categories_returns_label_and_icon_maps():

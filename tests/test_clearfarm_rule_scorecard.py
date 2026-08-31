@@ -13,12 +13,14 @@ def test_add_rule_scores_weights_hits_and_cooccurrence_bonus():
                 "co2_max": 3000.0,
                 "ammonia_max": 30.0,
                 "temperature_max": 32.0,
+                "humidity_max": 80.0,
             },
             {
                 "feed_intake_daily_min_zscore_3d": 0.0,
                 "co2_max": 1000.0,
                 "ammonia_max": 5.0,
                 "temperature_max": 20.0,
+                "humidity_max": 60.0,
             },
         ]
     )
@@ -31,6 +33,27 @@ def test_add_rule_scores_weights_hits_and_cooccurrence_bonus():
     assert scored.loc[0, "environment_score"] == pytest.approx(1.8)
     assert scored.loc[0, "rule_score"] == pytest.approx(2.7)
     assert scored.loc[1, "rule_score"] == 0.0
+
+
+def test_add_rule_scores_uses_optional_humidity_candidate():
+    df = pd.DataFrame(
+        [
+            {
+                "feed_intake_daily_min_zscore_3d": 0.0,
+                "co2_max": 1000.0,
+                "ammonia_max": 5.0,
+                "temperature_max": 20.0,
+                "humidity_max": 82.0,
+            }
+        ]
+    )
+    thresholds = RuleThresholds(co2_high=2500.0, humidity_high=75.0)
+
+    scored = add_rule_scores(df, thresholds)
+
+    assert scored.loc[0, "rule_humidity_high"] == True  # noqa: E712
+    assert scored.loc[0, "environment_score"] == 0.3
+    assert scored.loc[0, "rule_reasons"] == "humidity_high"
 
 
 def test_score_sweep_scores_thresholds_against_sign_column():

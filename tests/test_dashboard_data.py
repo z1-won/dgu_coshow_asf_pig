@@ -1,6 +1,8 @@
 import pandas as pd
 
 from pigproject.dashboard_data import (
+    attach_operational_stages,
+    attach_barn_comparison,
     building_label,
     chamber_room,
     date_only,
@@ -67,10 +69,17 @@ def test_load_chambers_adds_no_data_room_when_71408_3_is_missing(tmp_path):
     assert len(result["chambers"]) == 1
     assert result["chambers"][0]["buildingLabel"] == "1동"
     assert result["chambers"][0]["room"] == "4번 돈방"
+    assert result["chambers"][0]["evidence"]["sourceCsv"] == "artifacts/final_chamber_summary.csv"
+    assert "max_score" in result["chambers"][0]["evidence"]["scoreFields"]
+    assert result["chambers"][0]["operationalStage"]["key"] == "observe"
+    assert result["chambers"][0]["barnComparison"]["comparedPens"] == 1
+    assert result["chambers"][0]["barnComparison"]["maxScoreRank"] == 1
     assert len(result["noDataRooms"]) == 1
     assert result["noDataRooms"][0]["id"] == "bioenergy:71408:3-nodata"
+    assert result["noDataRooms"][0]["operationalStage"]["key"] == "nodata"
     assert result["totalRooms"] == 2
     assert result["buildings"] == ["1동"]
+    assert result["farmScope"]["mode"] == "single_farm"
 
 
 def test_load_chambers_omits_no_data_room_when_71408_3_is_present(tmp_path):
@@ -112,6 +121,9 @@ def test_load_incidents_picks_score_by_queue_and_translates_reason(tmp_path):
                 "max_environment_score": 0.3,
                 "reason": "rule: disease: rectal_temp_high | environment: co2_high",
                 "recommended_action": "체온 상승 개체 확인",
+                "environment_temp_policy": "high_confidence",
+                "environment_temp_label": "고확신",
+                "environment_temp_action": "CCTV/현장 확인 우선순위",
             }
         ]
     ).to_csv(csv_path, index=False)
@@ -125,3 +137,48 @@ def test_load_incidents_picks_score_by_queue_and_translates_reason(tmp_path):
     assert incident["end"] == "2022-12-05"
     assert incident["score"] == 1.3705  # picked max_track_score (queue=disease), not the environment score
     assert incident["reasonParts"] == ["체온 상승", "이산화탄소 농도 상승"]
+    assert incident["operationalStage"]["key"] == "cctv_focus"
+    assert incident["evidence"]["sourceCsv"] == "artifacts/action_queues/incident_queue.csv"
+    assert incident["evidence"]["scoreField"] == "max_track_score"
+    assert incident["evidence"]["inputScores"] == {"track": 1.3705, "management": 0.0, "environment": 0.3}
+    assert incident["environmentTemp"] == {
+        "policy": "high_confidence",
+        "label": "고확신",
+        "action": "CCTV/현장 확인 우선순위",
+    }
+
+
+def test_attach_operational_stages_promotes_chamber_with_incident():
+    chambers = [
+        {
+            "id": "bioenergy:71408:4",
+            "modelTier": "normal",
+            "evidence": {"statusRule": "old"},
+        }
+    ]
+    incidents = [
+        {
+            "chamberId": "bioenergy:71408:4",
+            "operationalStage": {"key": "caution", "label": "확인 필요"},
+        }
+    ]
+
+    attach_operational_stages(chambers, [], incidents)
+
+    assert chambers[0]["operationalStage"]["key"] == "caution"
+
+
+def test_attach_barn_comparison_ranks_pens_within_same_building():
+    chambers = [
+        {"id": "a", "buildingLabel": "1동", "max": 0.2},
+        {"id": "b", "buildingLabel": "1동", "max": 1.2},
+        {"id": "c", "buildingLabel": "2동", "max": 0.8},
+    ]
+
+    attach_barn_comparison(chambers)
+
+    by_id = {item["id"]: item for item in chambers}
+    assert by_id["b"]["barnComparison"]["maxScoreRank"] == 1
+    assert by_id["a"]["barnComparison"]["maxScoreRank"] == 2
+    assert by_id["a"]["barnComparison"]["comparedPens"] == 2
+    assert by_id["a"]["barnComparison"]["deltaFromBarnMean"] == -0.5

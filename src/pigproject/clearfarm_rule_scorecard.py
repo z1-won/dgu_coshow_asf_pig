@@ -38,26 +38,33 @@ def add_rule_scores(df: pd.DataFrame, thresholds: RuleThresholds) -> pd.DataFram
     scored["rule_co2_high"] = scored["co2_max"] >= thresholds.co2_high
     scored["rule_nh3_high"] = scored["ammonia_max"] >= thresholds.nh3_high
     scored["rule_barn_temp_high"] = scored["temperature_max"] >= thresholds.barn_temp_high
+    if thresholds.humidity_high is not None and "humidity_max" in scored.columns:
+        scored["rule_humidity_high"] = scored["humidity_max"] >= thresholds.humidity_high
+    else:
+        scored["rule_humidity_high"] = False
 
     scored["management_score"] = np.where(scored["rule_feed_drop"], SEVERITY_WEIGHTS["medium"], 0.0)
 
-    environment_hits = scored[["rule_co2_high", "rule_nh3_high", "rule_barn_temp_high"]].sum(axis=1)
+    environment_rule_cols = ["rule_co2_high", "rule_nh3_high", "rule_barn_temp_high", "rule_humidity_high"]
+    environment_hits = scored[environment_rule_cols].sum(axis=1)
     environment_severity = (
         np.where(scored["rule_co2_high"], SEVERITY_WEIGHTS["low"], 0.0)
         + np.where(scored["rule_nh3_high"], SEVERITY_WEIGHTS["low"], 0.0)
         + np.where(scored["rule_barn_temp_high"], SEVERITY_WEIGHTS["medium"], 0.0)
+        + np.where(scored["rule_humidity_high"], SEVERITY_WEIGHTS["low"], 0.0)
     )
     environment_bonus = CO_OCCURRENCE_BONUS_PER_EXTRA_RULE * np.maximum(0, environment_hits - 1)
     scored["environment_score"] = environment_severity + environment_bonus
 
-    all_hits = scored[["rule_feed_drop", "rule_co2_high", "rule_nh3_high", "rule_barn_temp_high"]].sum(axis=1)
+    all_rule_cols = ["rule_feed_drop", *environment_rule_cols]
+    all_hits = scored[all_rule_cols].sum(axis=1)
     all_severity = scored["management_score"] + environment_severity
     all_bonus = CO_OCCURRENCE_BONUS_PER_EXTRA_RULE * np.maximum(0, all_hits - 1)
     scored["rule_triggered_count"] = all_hits.astype(int)
     scored["rule_score"] = all_severity + all_bonus
     scored["feed_env_score"] = scored["management_score"] + scored["environment_score"]
 
-    reason_cols = ["rule_feed_drop", "rule_co2_high", "rule_nh3_high", "rule_barn_temp_high"]
+    reason_cols = all_rule_cols
     scored["rule_reasons"] = [
         ",".join(col.removeprefix("rule_") for col in reason_cols if bool(row[col]))
         for _, row in scored.iterrows()
@@ -179,6 +186,7 @@ def write_scorecard_outputs(
         f"- co2_high: `{thresholds.co2_high:g}`",
         f"- nh3_high: `{thresholds.nh3_high:g}`",
         f"- barn_temp_high: `{thresholds.barn_temp_high:g}`",
+        f"- humidity_high: `{thresholds.humidity_high:g}`" if thresholds.humidity_high is not None else "- humidity_high: 비활성",
         "",
         "## Best F1 Rows",
         "",

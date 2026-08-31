@@ -111,3 +111,33 @@ def test_low_severity_rule_is_observation_not_final_rule_anomaly():
     assert result.loc[0, "rule_observation"] == True  # noqa: E712
     assert result.loc[0, "rule_anomaly"] == False  # noqa: E712
     assert result.loc[0, "environment_rule_anomaly"] == False  # noqa: E712
+
+
+def test_evaluate_rules_supports_min_aggregation_for_short_drop_signal():
+    window_table = pd.DataFrame(
+        {
+            "dataset_key": ["71408", "71408"],
+            "chamber_number": [1, 1],
+            "start_datetime": pd.to_datetime(["2023-01-01", "2023-01-02"]),
+            "end_datetime": pd.to_datetime(["2023-01-01 04:00", "2023-01-02 04:00"]),
+            "feedstuff_volume_mean_zscore_3d__wmean": [-0.3, -0.2],
+            "feedstuff_volume_mean_zscore_3d__wmin": [-1.8, -0.7],
+        }
+    )
+    rules = [
+        {
+            "id": "feed_drop",
+            "feature": "feedstuff_volume_mean_zscore_3d",
+            "agg": "min",
+            "op": "<=",
+            "threshold": -1.5,
+            "severity": "medium",
+            "category": "management",
+        }
+    ]
+
+    result = evaluate_rules(window_table, rules)
+
+    assert result.loc[0, "rule_feed_drop"] == True  # noqa: E712
+    assert result.loc[0, "management_rule_anomaly"] == True  # noqa: E712
+    assert result.loc[1, "rule_feed_drop"] == False  # noqa: E712

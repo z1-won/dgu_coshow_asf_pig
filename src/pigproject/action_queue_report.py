@@ -11,6 +11,12 @@ from pigproject.bioenergy_report import dataframe_to_markdown
 
 QUEUE_CATEGORIES = ("disease", "management", "environment")
 DEFAULT_INCIDENT_GAP_HOURS = 24
+ENVIRONMENT_TEMP_COLUMNS = (
+    "environment_temp_policy",
+    "environment_temp_label",
+    "environment_temp_action",
+)
+_ENVIRONMENT_TEMP_RANK = {"normal": 0, "screening": 1, "balanced": 2, "high_confidence": 3}
 
 
 def _has_category(value: object, category: str) -> bool:
@@ -46,6 +52,19 @@ def _action_for(category: str, row: pd.Series) -> str:
             return "환기팬, 컨트롤러, 입기구, 설정값 확인"
         return "온습도/가스/환기 센서와 설비 상태 확인"
     return "현장 확인"
+
+
+def _copy_environment_temp_fields(row: pd.Series) -> dict[str, object]:
+    return {column: row.get(column, "") for column in ENVIRONMENT_TEMP_COLUMNS}
+
+
+def _dominant_environment_temp_fields(frame: pd.DataFrame) -> dict[str, object]:
+    if not all(column in frame.columns for column in ENVIRONMENT_TEMP_COLUMNS):
+        return {column: "" for column in ENVIRONMENT_TEMP_COLUMNS}
+    ranked = frame.copy()
+    ranked["_environment_temp_rank"] = ranked["environment_temp_policy"].map(_ENVIRONMENT_TEMP_RANK).fillna(-1)
+    row = ranked.sort_values("_environment_temp_rank", ascending=False).iloc[0]
+    return _copy_environment_temp_fields(row)
 
 
 def _severity_for(category: str, row: pd.Series) -> tuple[int, str]:
@@ -95,6 +114,7 @@ def build_action_queue(alerts: pd.DataFrame, categories: tuple[str, ...] = QUEUE
                     "tier": row.get("tier", ""),
                     "reason": row.get("reason", ""),
                     "recommended_action": _action_for(category, row),
+                    **_copy_environment_temp_fields(row),
                 }
             )
 
@@ -115,6 +135,7 @@ def build_action_queue(alerts: pd.DataFrame, categories: tuple[str, ...] = QUEUE
                 "tier",
                 "reason",
                 "recommended_action",
+                *ENVIRONMENT_TEMP_COLUMNS,
             ]
         )
 
@@ -159,6 +180,7 @@ def _summarize_incident(rows: list[pd.Series]) -> dict[str, object]:
         "tier": ",".join(sorted({str(value) for value in frame["tier"].dropna() if str(value)})),
         "reason": frame["reason"].iloc[0],
         "recommended_action": frame["recommended_action"].iloc[0],
+        **_dominant_environment_temp_fields(frame),
     }
 
 
@@ -181,6 +203,7 @@ def build_incident_queue(queue: pd.DataFrame, max_gap_hours: int = DEFAULT_INCID
         "tier",
         "reason",
         "recommended_action",
+        *ENVIRONMENT_TEMP_COLUMNS,
     ]
     if queue.empty:
         return pd.DataFrame(columns=columns)
@@ -278,6 +301,7 @@ def write_report(queue: pd.DataFrame, output_path: str | Path, incident_queue: p
             "max_track_score",
             "max_management_score",
             "max_environment_score",
+            "environment_temp_label",
             "reason",
             "recommended_action",
         ]

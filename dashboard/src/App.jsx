@@ -86,9 +86,7 @@ function facilityFlags(incident) {
 }
 
 function statusLabel(chamber, incident) {
-  if (chamber.isNoData) return "데이터 부족";
-  if (incident) return "확인 필요";
-  return "정상";
+  return chamber.operationalStage?.label || incident?.operationalStage?.label || (chamber.isNoData ? "데이터 부족" : incident ? "확인 필요" : "정상");
 }
 
 // 점수를 숫자로만 보여주면 비전공자는 판단 기준이 없다. 3단계 말로 바꿔서 보여준다.
@@ -100,21 +98,33 @@ function scoreTier(modelTier, hasIncident) {
 }
 
 function sensorText(chamber) {
-  if (chamber.isNoData) return "수집 미충족";
-  return `${chamber.track} · 관측 ${chamber.windows}회`;
+  if (chamber.isNoData) return "수집 기준 미달";
+  if (chamber.track.includes("카메라")) return `CCTV 행동 분석 · 관측 ${chamber.windows}회`;
+  return `체온·환경 센서 · 관측 ${chamber.windows}회`;
 }
 
-function UtilityStrip({ chamber }) {
-  if (chamber.isNoData) return null;
-  return (
-    <div className="utility-strip">
-      <Icon name="bowl" className="utility-dot" />
-      <Icon name="droplet" className="utility-dot" />
-      <Icon name="wind" className="utility-dot" />
-      {chamber.track.includes("카메라") ? <Icon name="user" className="utility-dot" /> : null}
-    </div>
-  );
+function issueText(incident, chamber) {
+  if (chamber.isNoData) return "데이터 부족";
+  if (!incident && chamber.operationalStage?.key === "observe") return "변화 관찰";
+  const reason = (incident?.reasonParts || []).join(" ");
+  const flags = facilityFlags(incident);
+  if (flags.feed && flags.water) return "급이·급수 이상";
+  if (flags.feed) return "급이 이상";
+  if (flags.water) return "급수 이상";
+  if (flags.ventilation) return "환기 이상";
+  if (reason.includes("체온")) return "체온 이상";
+  if (chamber.track.includes("카메라")) return "행동 분석";
+  return "기준 범위";
 }
+
+function barnComparisonText(chamber) {
+  const cmp = chamber.barnComparison;
+  if (!cmp || !cmp.comparedPens) return null;
+  const delta = Number(cmp.deltaFromBarnMean || 0);
+  const sign = delta > 0 ? "+" : "";
+  return `${cmp.scope} ${cmp.maxScoreRank}/${cmp.comparedPens} · 평균 대비 ${sign}${delta.toFixed(2)}`;
+}
+
 
 // camLabel: 이 돈방이 어느 CCTV 커버리지에 속하는지(복도 좌/우 어느 쪽인지)를 셀 위에 바로 표시한다.
 // 팀원 YOLO/CV 모델과 연결할 때 "이 카메라가 이 돈방을 본다"는 매핑이 배치도에서 바로 보여야 하기 때문.
@@ -124,7 +134,14 @@ function PenCell({ chamber, onOpen, camLabel }) {
     return <div className="pen-cell tier-blank"><span className="blank-label">예비 구획</span></div>;
   }
   const incident = !chamber.isNoData ? INCIDENTS.find((item) => item.chamberId === chamber.id) : null;
-  const severity = chamber.isNoData ? "sev-nodata" : incident ? "sev-critical" : "sev-normal";
+  const stage = chamber.operationalStage || incident?.operationalStage || {};
+  const severity = chamber.isNoData
+    ? "sev-nodata"
+    : stage.key === "cctv_focus" || stage.key === "caution"
+      ? "sev-critical"
+      : stage.key === "observe"
+        ? "sev-watch"
+        : "sev-normal";
   const content = (
     <>
       <div className="pen-main">
@@ -142,19 +159,20 @@ function PenCell({ chamber, onOpen, camLabel }) {
         {!chamber.isNoData ? (() => {
           const tier = scoreTier(chamber.modelTier, Boolean(incident));
           return (
-            <div className="pen-reading">
-              <span className={`tier-badge tier-${tier.key}`}>{tier.label}</span>
-              <span className="pen-reading-raw">{chamber.max.toFixed(2)}</span>
+            <div className={`pen-reading tier-${tier.key}`}>
+              <div className="score-row"><span className="pen-reading-raw">{chamber.max.toFixed(2)}</span><span>이상 점수</span></div>
+              <div className="issue-line">{issueText(incident, chamber)}</div>
             </div>
           );
-        })() : null}
-        <div className="pen-badges">
-          <UtilityStrip chamber={chamber} />
-          {camLabel && !chamber.isNoData ? (
-            <span className="cam-tag"><Icon name="camera" className="icon-cam" />{camLabel}</span>
-          ) : null}
-          {chamber.isNoData ? <span className="nodata-tag">데이터 부족</span> : null}
-        </div>
+        })() : (
+          <div className="pen-reading tier-muted">
+            <div className="score-row"><span className="pen-reading-raw">--</span><span>이상 점수</span></div>
+            <div className="issue-line">데이터 부족</div>
+          </div>
+        )}
+        {camLabel && !chamber.isNoData ? <div className="cam-tag">{camLabel}</div> : null}
+        {barnComparisonText(chamber) ? <div className="barn-compare-note">{barnComparisonText(chamber)}</div> : null}
+        {stage.description && !chamber.isNoData ? <div className="stage-note">{stage.description}</div> : null}
       </div>
     </>
   );
@@ -192,7 +210,6 @@ function coverageLabel(row) {
 function CamStrip({ label, rooms, side }) {
   return (
     <div className={`cam-strip cam-strip-${side}`}>
-      <Icon name="camera" className="icon-cam" />
       <span>{label}</span>
       <b>{coverageLabel(rooms)}</b>
     </div>
@@ -226,7 +243,7 @@ function sensorProfile(chamber, incident) {
     source: "체온·환경 센서",
     devices,
     checks: incident
-      ? ["개체 체온 상승 여부 확인", "CO2/NH3 센서값 재확인", "환기·분뇨 설비 상태 확인"]
+      ? ["개체 체온 상승 여부 확인", "CO₂/NH₃ 센서값 재확인", "환기·분뇨 설비 상태 확인"]
       : ["최근 센서 수집 상태 확인", "기준선 대비 변화 추적", "경보 발생 시 현장 확인 기록"],
   };
 }
@@ -244,14 +261,28 @@ function DetailChips({ items }) {
   return <div className="dlg-chip-row">{items.map((item) => <span key={item}>{item}</span>)}</div>;
 }
 
-function FacilityBlock({ icon, label, sub }) {
+function scoreBreakdownText(evidence) {
+  const scores = evidence?.inputScores;
+  if (!scores) return "이벤트 점수 없음";
+  return `질병/행동 ${Number(scores.track).toFixed(3)} · 급이·급수 ${Number(scores.management).toFixed(3)} · 환경 ${Number(scores.environment).toFixed(3)}`;
+}
+
+function hasEnvironmentTempStage(incident) {
+  const policy = incident?.environmentTemp?.policy;
+  return ["screening", "balanced", "high_confidence"].includes(policy);
+}
+
+function environmentTempText(incident) {
+  const stage = incident?.environmentTemp;
+  if (!stage?.label) return "온도 단계 없음";
+  return stage.action ? `${stage.label} · ${stage.action}` : stage.label;
+}
+
+function FacilityBlock({ label, sub }) {
   return (
     <div className="facility-block">
-      <Icon name={icon} className="icon-facility" />
-      <div>
-        <span>{label}</span>
-        <small>{sub}</small>
-      </div>
+      <span>{label}</span>
+      <small>{sub}</small>
     </div>
   );
 }
@@ -273,7 +304,7 @@ function PlanView() {
     <section>
       <div className="section-head">
         <h2>돈방 배치도</h2>
-        <span className="section-note">표준 돈사 배치 개념을 따라 돈방열, 작업복도, 설비 위치를 함께 봅니다.</span>
+        <span className="section-note">돈방 위치, 상태, 센서 관계를 한 화면에서 확인합니다.</span>
       </div>
       <div className="plan-toolbar">
         <div className="building-tabs">
@@ -291,18 +322,18 @@ function PlanView() {
         <div className="site-frame">
           <div className="site-road">
             <span>외부 도로</span>
-            <span className="dim-total">전체 길이 120,000 (표준설계 기준)</span>
+            <span className="dim-total">전체 길이 120m 기준</span>
             <span>방역 라인</span>
           </div>
           <div className="site-body">
-            <div className="site-gate">출입구 · CAM-GATE</div>
+            <div className="site-gate">출입구 · 카메라</div>
             <div className="barn-shell">
               <aside className="service-core">
                 <div className="service-title">관리·설비 구역</div>
-                <FacilityBlock icon="camera" label="출입 확인" sub="CAM-GATE" />
-                <FacilityBlock icon="bowl" label="급이 라인" sub="feed sensor" />
-                <FacilityBlock icon="droplet" label="급수 라인" sub="water sensor" />
-                <FacilityBlock icon="wind" label="환기 설비" sub="CO2/NH3" />
+                <FacilityBlock label="출입 확인" sub="출입구 카메라" />
+                <FacilityBlock label="급이 설비" sub="사료 섭취" />
+                <FacilityBlock label="급수 설비" sub="음수량" />
+                <FacilityBlock label="환기 설비" sub="CO₂ / NH₃" />
               </aside>
               <div className="housing-bay">
                 <CamStrip label="CAM-01" rooms={leftRooms} side="left" />
@@ -312,7 +343,7 @@ function PlanView() {
                 </div>
                 <div className="corridor-vert">
                   <span className="corridor-vert-label">작업복도</span>
-                  <span className="corridor-vert-flow"><Icon name="wind" className="icon-cam" /> 환기 흐름</span>
+                  <span className="corridor-vert-flow">환기 흐름</span>
                 </div>
                 <div className="pen-col pen-col-right">
                   {rightRooms.map((room) => <PenCell key={room.id} chamber={room} onOpen={openDetail} camLabel="CAM-02" />)}
@@ -323,13 +354,15 @@ function PlanView() {
           </div>
         </div>
         <div className="legend">
+          <span><span className="sw cctv" /> CCTV 확인</span>
           <span><span className="sw critical" /> 확인 필요</span>
+          <span><span className="sw watch" /> 관찰 후보</span>
           <span><span className="sw normal" /> 정상</span>
           <span><span className="sw nodata" /> 데이터 부족</span>
-          <span><Icon name="bowl" className="icon-cam" /> 급이</span>
-          <span><Icon name="droplet" className="icon-cam" /> 급수</span>
-          <span><Icon name="wind" className="icon-cam" /> 환기/환경</span>
-          <span><Icon name="camera" className="icon-cam" /> CCTV</span>
+          <span>급이 이상</span>
+          <span>급수 이상</span>
+          <span>환기 이상</span>
+          <span>CCTV 커버리지</span>
         </div>
       </div>
       <dialog ref={dialogRef} onClose={() => setSelected(null)}>
@@ -377,6 +410,7 @@ function PlanView() {
               <div className="dlg-evidence-grid">
                 <div><span>데이터 소스</span><b>{profile.source}</b></div>
                 <div><span>연결 설비</span><b>{connectedFacilities.length ? connectedFacilities.join(" · ") : "기본 센서 모니터링"}</b></div>
+                <div><span>동 내 비교</span><b>{barnComparisonText(selected) || "비교 대상 부족"}</b></div>
               </div>
               <DetailChips items={profile.devices} />
             </DetailSection>
@@ -393,8 +427,33 @@ function PlanView() {
             {selectedIncident ? (
               <DetailSection title="현재 이벤트 근거">
                 <DetailChips items={selectedIncident.reasonParts?.length ? selectedIncident.reasonParts : [CATEGORY_LABEL[selectedIncident.category]]} />
+                {hasEnvironmentTempStage(selectedIncident) ? (
+                  <div className="environment-temp-stage">
+                    <span>환경 온도 단계</span>
+                    <b>{environmentTempText(selectedIncident)}</b>
+                  </div>
+                ) : null}
               </DetailSection>
             ) : null}
+            <DetailSection title="판단 근거">
+              <div className="dlg-evidence-grid trace-grid">
+                <div><span>돈방 점수 출처</span><b>{selected.evidence?.sourceCsv || "artifacts/final_chamber_summary.csv"}</b></div>
+                <div><span>상태 판단</span><b>{selected.evidence?.statusRule || "이벤트 큐 매칭 기준"}</b></div>
+                {selectedIncident ? (
+                  <>
+                    <div><span>이벤트 출처</span><b>{selectedIncident.evidence?.sourceCsv || "artifacts/action_queues/incident_queue.csv"}</b></div>
+                    <div><span>사용 점수</span><b>{selectedIncident.evidence?.scoreField || "category score"}</b></div>
+                    <div><span>점수 선택 기준</span><b>{selectedIncident.evidence?.scoreFormula || "이벤트 큐별 대표 점수"}</b></div>
+                    <div><span>입력 점수</span><b>{scoreBreakdownText(selectedIncident.evidence)}</b></div>
+                  </>
+                ) : (
+                  <div><span>현재 상태</span><b>같은 돈방의 확인 필요 이벤트 없음</b></div>
+                )}
+              </div>
+              {selectedIncident?.evidence?.rawReason ? (
+                <div className="trace-reason">원본 rule: {selectedIncident.evidence.rawReason}</div>
+              ) : null}
+            </DetailSection>
             <div className="dlg-msg">
               <IconInfoFill className="icon-info" />
               <span>{selected.lowConf ? "관측 횟수가 적어 참고용으로만 봐야 합니다." : "경보가 있는 경우 아래 확인 필요 이벤트에서 조치 결과를 남깁니다."}</span>
@@ -423,6 +482,238 @@ function exportReviewsCsv(resolutions) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function formatPercent(value) {
+  return Number.isFinite(Number(value)) ? `${Number(value).toFixed(1)}%` : "-";
+}
+
+function PerformanceView() {
+  const { PERFORMANCE_SUMMARY } = useDashboardData();
+  const summary = PERFORMANCE_SUMMARY || { headline: [], clearfarmRows: [], environmentPolicy: [], leadTime: {}, externalChecks: [], notes: [], sourceFiles: [] };
+  const lead = summary.leadTime || {};
+
+  return (
+    <section>
+      <div className="section-head">
+        <h2>성능 요약</h2>
+        <span className="section-note">현재 모델·규칙이 실제 검증 데이터에서 어느 정도 작동하는지 확인합니다.</span>
+      </div>
+
+      <div className="performance-grid">
+        {(summary.headline || []).map((item) => (
+          <div className="perf-metric" key={item.label}>
+            <div className="perf-label">{item.label}</div>
+            <div className="perf-value-row">
+              <b>{formatPercent(item.value)}</b>
+              <span>{item.unit}</span>
+            </div>
+            <p>{item.detail}</p>
+            <small>{item.caution}</small>
+          </div>
+        ))}
+      </div>
+
+      <div className="performance-columns">
+        <section className="perf-panel">
+          <div className="perf-panel-head">
+            <h3>ClearFarm 규칙 검증</h3>
+            <span>비육돈 실제 농장 pen-day 기준</span>
+          </div>
+          <div className="perf-table" role="table" aria-label="ClearFarm rule score threshold performance">
+            <div className="perf-table-row head" role="row">
+              <span>운영 기준</span><span>민감도</span><span>특이도</span><span>정밀도</span><span>F1</span>
+            </div>
+            {(summary.clearfarmRows || []).map((row) => (
+              <div className="perf-table-row" role="row" key={row.threshold}>
+                <span><b>{row.label}</b><em>{row.threshold}</em></span>
+                <span>{formatPercent(row.sensitivity)}</span>
+                <span>{formatPercent(row.specificity)}</span>
+                <span>{formatPercent(row.precision)}</span>
+                <span>{formatPercent(row.f1)}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {(summary.environmentPolicy || []).length ? (
+          <section className="perf-panel environment-policy-panel">
+            <div className="perf-panel-head">
+              <h3>환경 기준 3단계</h3>
+              <span>온도 기준별 탐지 성능과 확인 부담</span>
+            </div>
+            <div className="environment-policy-table" role="table" aria-label="ClearFarm environment temperature policy comparison">
+              <div className="environment-policy-row head" role="row">
+                <span>단계</span><span>기준</span><span>민감도</span><span>정밀도</span><span>오탐/일</span><span>판단</span>
+              </div>
+              {summary.environmentPolicy.map((row) => (
+                <div className="environment-policy-row" role="row" key={row.policy}>
+                  <span><b>{row.label}</b></span>
+                  <span>{row.threshold}</span>
+                  <span>{formatPercent(row.recall)}</span>
+                  <span>{formatPercent(row.precision)}</span>
+                  <span>{row.falseAlertsPerDay}</span>
+                  <span>{row.decision}</span>
+                </div>
+              ))}
+            </div>
+            <p className="environment-policy-note">기본 후보는 균형 단계입니다. 선별은 관찰 범위를 넓히는 용도, 고확신은 CCTV/현장 확인 우선순위로 해석합니다.</p>
+          </section>
+        ) : null}
+
+        {(summary.clearfarmRecallCandidates || []).length ? (
+          <section className="perf-panel recall-candidate-panel">
+            <div className="perf-panel-head">
+              <h3>ClearFarm 관찰 민감도 후보</h3>
+              <span>전체 후보, 상반기 후보, 정밀도 필터 비교</span>
+            </div>
+            <div className="alert-flow-strip" aria-label="운영 알림 단계">
+              <div>
+                <span>1차 선별</span>
+                <b>관찰 후보</b>
+                <em>넓게 잡고 반복 여부 확인</em>
+              </div>
+              <div>
+                <span>정밀 필터</span>
+                <b>확인 필요</b>
+                <em>같은 원인이 반복될 때 승격</em>
+              </div>
+              <div>
+                <span>현장 확인</span>
+                <b>CCTV 확인</b>
+                <em>돈방 단위 후보를 행동 확인으로 연결</em>
+              </div>
+            </div>
+            <div className="candidate-compare-grid">
+              {summary.clearfarmRecallCandidates.map((candidate) => (
+                <article className={`candidate-card ${candidate.id === "jan_may_candidate" ? "recommended" : ""} ${candidate.id === "precision_tuned_candidate" ? "precision-selected" : ""}`} key={candidate.id}>
+                  <div className="candidate-card-head">
+                    <div>
+                      <b>{candidate.title}</b>
+                      <span>{candidate.scope}</span>
+                    </div>
+                    <strong>{candidate.status}</strong>
+                  </div>
+                  <div className="candidate-summary-line">
+                    <div>
+                      <span>민감도</span>
+                      <b>{formatPercent(candidate.baselineRecall)} → {formatPercent(candidate.candidateRecall)}</b>
+                    </div>
+                    <div>
+                      <span>정밀도</span>
+                      <b>{formatPercent(candidate.baselinePrecision)} → {formatPercent(candidate.candidatePrecision)}</b>
+                    </div>
+                    <div>
+                      <span>알림 수</span>
+                      <b>{candidate.baselineAlerts} → {candidate.candidateAlerts}</b>
+                    </div>
+                  </div>
+                  <p className="candidate-interpretation">{candidate.interpretation}</p>
+                  {Number.isFinite(Number(candidate.suppressed)) ? (
+                    <div className="candidate-operation-note">
+                      <b>{candidate.suppressed}건</b>
+                      <span>확정 알림으로 올리지 않고 관찰 후보에 유지</span>
+                    </div>
+                  ) : null}
+                  <div className="candidate-change-list">
+                    {(candidate.changes || []).map((change) => <span key={change}>{change}</span>)}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <div className="candidate-reason-table" role="table" aria-label="ClearFarm recommended candidate added alert reasons">
+              <div className="candidate-reason-row head" role="row">
+                <span>상반기 후보 추가 원인</span><span>추가 알림</span><span>관찰 일치율</span>
+              </div>
+              {((summary.clearfarmRecallCandidates || []).find((candidate) => candidate.id === "jan_may_candidate")?.reasonRows || []).map((row) => (
+                <div className="candidate-reason-row" role="row" key={`${row.reason}-${row.addedAlerts}`}>
+                  <span>{row.reason}</span>
+                  <span>{row.addedAlerts}건</span>
+                  <span>{formatPercent(row.hitRate)}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="perf-panel">
+          <div className="perf-panel-head">
+            <h3>Lead-time 평가</h3>
+            <span>이벤트 시작 전 경보 포착 여부</span>
+          </div>
+          <div className="lead-summary">
+            <div><span>사건</span><b>{lead.events || 0}건</b></div>
+            <div><span>사전 포착</span><b>{lead.matched || 0}건</b></div>
+            <div><span>평균 선행 시간</span><b>{lead.meanLeadHours || 0}시간</b></div>
+            <div><span>정밀도 proxy</span><b>{formatPercent(lead.precisionProxy)}</b></div>
+          </div>
+          <div className="recall-bars" aria-label="lead time recall">
+            {[
+              ["24시간", lead.recall24h],
+              ["48시간", lead.recall48h],
+              ["72시간", lead.recall72h],
+            ].map(([label, value]) => (
+              <div className="recall-bar" key={label}>
+                <span>{label}</span>
+                <div><i style={{ width: `${Number(value) || 0}%` }} /></div>
+                <b>{formatPercent(value)}</b>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="perf-panel weakness-panel">
+        <div className="perf-panel-head">
+          <h3>현재 취약점</h3>
+          <span>운영 적용 전 반드시 설명해야 하는 숫자</span>
+        </div>
+        <div className="weakness-list">
+          {(summary.weaknesses || []).map((item) => (
+            <div className="weakness-item" key={item.title}>
+              <div className="weakness-value"><b>{item.value}</b><span>{item.label}</span></div>
+              <div>
+                <h4>{item.title}</h4>
+                <p>{item.detail}</p>
+                <em>{item.next}</em>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="perf-panel plan-panel">
+        <div className="perf-panel-head">
+          <h3>개선 계획</h3>
+          <span>성능 수치에서 바로 이어지는 작업</span>
+        </div>
+        <ol className="improvement-list">
+          {(summary.improvementPlan || []).map((item) => <li key={item}>{item}</li>)}
+        </ol>
+      </section>
+
+      <section className="perf-panel external-panel">
+        <div className="perf-panel-head">
+          <h3>외부 데이터 검증 근거</h3>
+          <span>운영 전 신뢰도 판단용</span>
+        </div>
+        <div className="external-checks">
+          {(summary.externalChecks || []).map((item) => (
+            <div className="external-check" key={item.dataset}>
+              <b>{item.dataset}</b>
+              <span>{item.role}</span>
+              <p>{item.result}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="perf-sources">
+        <h3>수치 출처</h3>
+        {(summary.sourceFiles || []).map((file) => <code key={file}>{file}</code>)}
+      </section>
+    </section>
+  );
 }
 
 function HistoryView({ resolutions, unresolve }) {
@@ -498,6 +789,7 @@ export default function App() {
             </>
           ) : null}
           {currentView === "plan" ? <PlanView /> : null}
+          {currentView === "performance" ? <PerformanceView /> : null}
           {currentView === "history" ? <HistoryView resolutions={resolutions} unresolve={unresolve} /> : null}
         </div>
         <footer>시연용 데이터 · 최종 운영 연결 시 incident review log와 rule tuning 결과를 함께 저장합니다.</footer>

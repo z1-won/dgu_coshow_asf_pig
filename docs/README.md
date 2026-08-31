@@ -26,6 +26,8 @@
 14. [다음 작업 계획](00_overview/NEXT_STEPS.md)
 14. [특허 후보 노트](06_ip_and_business/PATENT_CANDIDATES.md)
 14-1. [산학협력단/변리사 상담 요청 자료](06_ip_and_business/CONSULTATION_PACKAGE.md)
+15. [팀원 통합 Handoff](07_team_handoff/TEAM_INTEGRATION_HANDOFF.md)
+16. [CV-Sensor 통합 체크리스트](07_team_handoff/CV_SENSOR_INTEGRATION_CHECKLIST.md)
 
 ## 2. 폴더 구조
 
@@ -38,6 +40,7 @@
 | `04_evaluation_validation` | threshold, 외부 검증, sanity check, ensemble 판단 | `EXTERNAL_VALIDATION_SUMMARY.md` |
 | `05_operations_feedback` | 현장 이벤트, action queue, review feedback | `RISK_CATEGORY_ALERTS.md` |
 | `06_ip_and_business` | 특허 후보, 사업화 방향 | `PATENT_CANDIDATES.md` |
+| `07_team_handoff` | 팀원 공유, CV-Sensor 통합 기준, 전달 메시지 | `TEAM_INTEGRATION_HANDOFF.md` |
 
 ## 3. 한 줄 요약
 
